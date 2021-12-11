@@ -481,7 +481,7 @@ def cots_gearboxes() -> List[Gearbox]:
 gearboxes = cots_gearboxes()
 wheel_sizes = [4, 6]
 current_limits = list(range(20, 55, 1))
-motor = "NEO"
+motor = "Falcon 500"
 
 PINION_MIN = 10
 PINION_MAX = 14
