@@ -169,301 +169,239 @@ def calc(
     _throttle_response_up = rm = []
     _throttle_response_down = si = []
 
-    _is_hit_target = oy = [pu[offset(8)] >= _f29]
-    _is_finished_decelerating = ks = [oy[offset(8)]]
-
-    assert oy == [False]
-    assert ks == [False]
+    _is_hit_target = oy = [_distance[offset(8)] >= _f29]
+    _is_finished_decelerating = ks = [_is_hit_target[offset(8)]]
 
     _applied_acceleration = gm = [
         0
-        if ks[offset(8)] and oy[offset(8)]
-        else eu[offset(8)] * c14 / s6 / c24 / c23 * 3.39 * c21
+        if _is_finished_decelerating[offset(8)] and _is_hit_target[offset(8)]
+        else _actual_applied_torque[offset(8)] * c14 / s6 / c24 / c23 * 3.39 * c21
     ]
-    assert gm == [0.0]
-    _abs_acceleration = hi = [abs(gm[offset(8)])]
-    assert hi == [0.0]
+    _abs_acceleration = hi = [abs(_applied_acceleration[offset(8)])]
 
     _clamped_per_motor_current_draw = dc = [
-        min(abs(cg[offset(8)]), s5) * signum(cg[offset(8)])
+        min(abs(_attempted_current_draw[offset(8)]), s5)
+        * signum(_attempted_current_draw[offset(8)])
     ]
-    assert dc == [0.0]
 
     _actual_current_draw = fq = [
         0
-        if ks[offset(8)] and oy[offset(8)]
-        else min((abs((c14 - c15) * eu[offset(8)] / c12) + c15) / c21, dc[offset(8)])
+        if _is_finished_decelerating[offset(8)] and _is_hit_target[offset(8)]
+        else min(
+            (abs((c14 - c15) * _actual_applied_torque[offset(8)] / c12) + c15) / c21,
+            _clamped_per_motor_current_draw[offset(8)],
+        )
     ]
-    assert fq == [0.0]
 
-    _abs_applied_voltage = ie = [abs(ng[offset(8)])]
-    assert ie == [0.0]
-
+    _abs_applied_voltage = ie = [abs(_applied_voltage[offset(8)])]
     _is_current_limiting = ja = [
         6
-        if (abs(fq[offset(8)]) >= dc[offset(8)] - 1) and (abs(cg[offset(8)]) >= s5)
+        if (
+            abs(_actual_current_draw[offset(8)])
+            >= _clamped_per_motor_current_draw[offset(8)] - 1
+        )
+        and (abs(_attempted_current_draw[offset(8)]) >= s5)
         else None
     ]
-    assert ja == [None]
-
-    _system_voltage = oc = [_f35 - (fq[offset(8)] * c13) * c19 * _f39]
-    assert oc == [12.6]
-
-    _coulombs = qq = [min(fq[offset(8)], c16) * c17 * 1000 / 60 / 60 / c21]
-    assert qq == [0.0]
-
+    _system_voltage = oc = [_f35 - (_actual_current_draw[offset(8)] * c13) * c19 * _f39]
+    _coulombs = qq = [
+        min(_actual_current_draw[offset(8)], c16) * c17 * 1000 / 60 / 60 / c21
+    ]
     _applied_cof = dy = [(c23 / 0.4536 * _f16 * 4.448 * c24 * s6)]
     _is_wheel_slipping = mk = [None]
 
     ttg = None
 
     for row, time in enumerate(_times, start=9):
-        lo.append(max(gm[offset(row - 1)] * c17 + lo[offset(row - 1)], 0))
-        if row == 10:
-            assert lo == [0.0, 0.0, 1.1848664082357143], lo
+        _floor_speed.append(
+            max(
+                _applied_acceleration[offset(row - 1)] * c17
+                + _floor_speed[offset(row - 1)],
+                0,
+            )
+        )
 
         # ng
-        if oy[offset(row - 1)] == 0:
+        if _is_hit_target[offset(row - 1)] == 0:
             val = (
                 min(
-                    _f35 - fq[offset(row - 1)] * c19 * _f39,
-                    ng[offset(row - 1)] + c39,
+                    _f35 - _actual_current_draw[offset(row - 1)] * c19 * _f39,
+                    _applied_voltage[offset(row - 1)] + c39,
                 )
                 - c7
             )
         else:
-            if lo[offset(row - 1)] - 1 <= 0:
+            if _floor_speed[offset(row - 1)] - 1 <= 0:
                 val = 0
             else:
                 if c37 == motors_c30:
-                    val = max([max(ng) * -1, ng[offset(row - 1)] - c39])
+                    val = max(
+                        [
+                            max(_applied_voltage) * -1,
+                            _applied_voltage[offset(row - 1)] - c39,
+                        ]
+                    )
                 else:
-                    val = max([0, max(ng) * -1, ng[offset(row - 1)] - c39])
-        ng.append(val)
-        if row == 10:
-            assert ng == [0.0, 12.42, 7.5600000000000005], ng
-
-        s.append(ng[offset(row)] / _f35)
-        if row == 10:
-            assert s == [0.0, 0.9857142857142858, 0.6000000000000001], s
-
-        ie.append(abs(ng[offset(row)]))
-        if row == 10:
-            assert ie == [0.0, 12.42, 7.5600000000000005], ie
-
-        ao.append(lo[offset(row)] * 12 * 60 / (pi * _f15) / s6 * abs(s[offset(row)]))
-        if row == 10:
-            assert ao == [0.0, 0.0, 244.39624012343268], ao
-
-        # print(lo[offset(row)])
-        # bk.append(
-        #     0
-        #     if (ks[offset(row) - 1]) or (c37 == motors_c32 and oy[offset(row) - 1])
-        #     else (
-        #         -(cg[offset(row - 1)] + c15) / (c14 - c15) * c12
-        #         if ng[offset(row)] == 0
-        #         else (c11 * s[offset(row)] - ao[offset(row)])
-        #         / (c11 * s[offset(row)])
-        #         * c12
-        #         * s[offset(row)]
-        #     )
-        # )
-        # bk
-        if (ks[offset(row - 1)]) or ((c37 == motors_c32) and (oy[offset(row - 1)])):
+                    val = max(
+                        [
+                            0,
+                            max(_applied_voltage) * -1,
+                            _applied_voltage[offset(row - 1)] - c39,
+                        ]
+                    )
+        _applied_voltage.append(val)
+        _applied_voltage_ratios.append(_applied_voltage[offset(row)] / _f35)
+        _abs_applied_voltage.append(abs(_applied_voltage[offset(row)]))
+        _motor_speed.append(
+            _floor_speed[offset(row)]
+            * 12
+            * 60
+            / (pi * _f15)
+            / s6
+            * abs(_applied_voltage_ratios[offset(row)])
+        )
+        if (_is_finished_decelerating[offset(row - 1)]) or (
+            (c37 == motors_c32) and (_is_hit_target[offset(row - 1)])
+        ):
             val = 0
         else:
-            if ng[offset(row)] == 0:
-                val = -(cg[offset(row - 1)] + c15) / (c14 - c15) * c12
+            if _applied_voltage[offset(row)] == 0:
+                val = (
+                    -(_attempted_current_draw[offset(row - 1)] + c15)
+                    / (c14 - c15)
+                    * c12
+                )
             else:
                 val = (
-                    (c11 * s[offset(row)] - ao[offset(row)])
-                    / (c11 * s[offset(row)])
+                    (
+                        c11 * _applied_voltage_ratios[offset(row)]
+                        - _motor_speed[offset(row)]
+                    )
+                    / (c11 * _applied_voltage_ratios[offset(row)])
                     * c12
-                    * s[offset(row)]
+                    * _applied_voltage_ratios[offset(row)]
                 )
-        bk.append(val)
-        if row == 10:
-            assert bk == [0.0, 2.642355], bk
-        # if row == 9:
-        #     dy.append(
-        #         (c23 / 0.4536 * _f16 * 4.448 * c24 * s6) * signum(bk[offset(row)])
-        #     )
-
-        cg.append(
+        _attempted_torque_at_motor.append(val)
+        _attempted_current_draw.append(
             0
-            if ks[offset(row - 1)] and oy[offset(row - 1)]
-            else abs(bk[offset(row)] / c12 * (c14 - c15) + c15) * _aa49
-            + cg[offset(row - 1)] * (1 - _aa49)
+            if _is_finished_decelerating[offset(row - 1)]
+            and _is_hit_target[offset(row - 1)]
+            else abs(_attempted_torque_at_motor[offset(row)] / c12 * (c14 - c15) + c15)
+            * _aa49
+            + _attempted_current_draw[offset(row - 1)] * (1 - _aa49)
         )
-        if row == 10:
-            assert cg == [0.0, 107.14911428571429], cg
 
-        ja.append(6 if abs(cg[offset(row)]) >= s5 else None)
-        if row == 10:
-            assert ja == [None, 6], ja
+        _is_current_limiting.append(
+            6 if abs(_attempted_current_draw[offset(row)]) >= s5 else None
+        )
 
-        dc.append(min(abs(cg[offset(row)]), s5) * signum(cg[offset(row)]))
-        if row == 10:
-            assert dc == [0.0, 45.0], dc
-        # eu.append(
-        #     max(
-        #         min(
-        #             (
-        #                 (-1 if (oy[offset(row - 1)] and ng[offset(row)] < 0) else 1)
-        #                 * (dc[offset(row)] - c15)
-        #                 / (c14 - c15)
-        #                 * c12
-        #                 * c21
-        #                 - c33 * lo[offset(row)] / ao6
-        #                 - oy[offset(row - 1)] * c33 / c21
-        #             ),
-        #             dy[offset(row - 1)] / c19,
-        #         ),
-        #         max(eu) * -1,
-        #     )
-        # )
-        # eu
-        b = max(eu) * -1
+        _clamped_per_motor_current_draw.append(
+            min(abs(_attempted_current_draw[offset(row)]), s5)
+            * signum(_attempted_current_draw[offset(row)])
+        )
 
-        if oy[offset(row - 1)] and ng[offset(row)] < 0:
+        b = max(_actual_applied_torque) * -1
+
+        if _is_hit_target[offset(row - 1)] and _applied_voltage[offset(row)] < 0:
             a1_ = -1
         else:
             a1_ = 1
 
         a1 = (
-            a1_ * (dc[offset(row)] - c15) / (c14 - c15) * c12 * c21
-            - c33 * lo[offset(row)] / ao6
-            - oy[offset(row - 1)] * c33 / c21
+            a1_
+            * (_clamped_per_motor_current_draw[offset(row)] - c15)
+            / (c14 - c15)
+            * c12
+            * c21
+            - c33 * _floor_speed[offset(row)] / ao6
+            - _is_hit_target[offset(row - 1)] * c33 / c21
         )
-        a2 = dy[offset(row - 1)] / c19
+        a2 = _applied_cof[offset(row - 1)] / c19
         a = min(a1, a2)
-        eu.append(max(a, b))
-        if row == 10:
-            assert eu == [0.0, 0.8285141333333333], eu
-
-        mk.append(
+        _actual_applied_torque.append(max(a, b))
+        _is_wheel_slipping.append(
             3
             if all(
                 [
-                    abs(cg[offset(row)]) > 0,
-                    eu[offset(row)] * c19 >= dy[offset(row - 1)],
-                    ng[offset(row)] != 0,
+                    abs(_attempted_current_draw[offset(row)]) > 0,
+                    _actual_applied_torque[offset(row)] * c19
+                    >= _applied_cof[offset(row - 1)],
+                    _applied_voltage[offset(row)] != 0,
                 ]
             )
             else None
         )
-        if row == 10:
-            assert mk == [None, 3], mk
-
-        gm.append(
+        _applied_acceleration.append(
             0
-            if ((ks[offset(row - 1)]) and (oy[offset(row - 1)]))
-            else eu[offset(row)] * c19 / s6 / c24 / c23 * 3.39 * c21
+            if (
+                (_is_finished_decelerating[offset(row - 1)])
+                and (_is_hit_target[offset(row - 1)])
+            )
+            else _actual_applied_torque[offset(row)] * c19 / s6 / c24 / c23 * 3.39 * c21
         )
-        if row == 10:
-            assert gm == [0.0, 29.621660205892855], gm
-
-        pu.append(
-            pu[offset(row - 1)]
-            + 0.5 * gm[offset(row)] * c17 ** 2
-            + lo[offset(row)] * c17
+        _distance.append(
+            _distance[offset(row - 1)]
+            + 0.5 * _applied_acceleration[offset(row)] * c17 ** 2
+            + _floor_speed[offset(row)] * c17
         )
-        if row == 10:
-            assert pu == [0.0, 0.023697328164714284], pu
 
-        hi.append(abs(gm[offset(row)]))
-        if row == 10:
-            assert hi == [0.0, 29.621660205892855], hi
+        _abs_acceleration.append(abs(_applied_acceleration[offset(row)]))
 
-        oy.append(pu[offset(row)] >= _f29)
-        if oy[-1] and ttg is None:
+        _is_hit_target.append(_distance[offset(row)] >= _f29)
+        if _is_hit_target[-1] and ttg is None:
             ttg = time
 
-        if row == 10:
-            assert oy == [False, False], oy
-
-        if oy[offset(row)] == 0:
-            if mk[offset(row - 1)] is None:
+        if _is_hit_target[offset(row)] == 0:
+            if _is_wheel_slipping[offset(row - 1)] is None:
                 a = _f16
             else:
                 a = _f17
 
-            b = c23 / 0.4536 * a * 4.448 * c24 * s6 * signum(bk[offset(row)])
+            b = (
+                c23
+                / 0.4536
+                * a
+                * 4.448
+                * c24
+                * s6
+                * signum(_attempted_torque_at_motor[offset(row)])
+            )
             val = b
         else:
-            val = bk[offset(row)]
+            val = _attempted_torque_at_motor[offset(row)]
 
-        dy.append(val)
-        if row == 10:
-            assert dy == [4.9710848, 4.9710848], dy
+        _applied_cof.append(val)
 
-        ks.append(ks[offset(row - 1)] or (oy[offset(row)] and lo[offset(row)] <= c41))
-        if row == 10:
-            assert ks == [False, False], ks
+        _is_finished_decelerating.append(
+            _is_finished_decelerating[offset(row - 1)]
+            or (_is_hit_target[offset(row)] and _floor_speed[offset(row)] <= c41)
+        )
 
-        fq.append(
+        _actual_current_draw.append(
             0
-            if (ks[offset(row)] and oy[offset(row)])
+            if (_is_finished_decelerating[offset(row)] and _is_hit_target[offset(row)])
             else min(
-                (abs((c14 - c15) * eu[offset(row)] / c12 / c21) + c15) / c21,
-                dc[offset(row)],
+                (
+                    abs((c14 - c15) * _actual_applied_torque[offset(row)] / c12 / c21)
+                    + c15
+                )
+                / c21,
+                _clamped_per_motor_current_draw[offset(row)],
             )
         )
-        if row == 10:
-            assert fq == [0, 45], fq
 
-        oc.append(_f35 - (fq[offset(row)] * c13) * c19 * _f39)
-        if row == 10:
-            assert oc == [12.6, 8.955], oc
+        _system_voltage.append(
+            _f35 - (_actual_current_draw[offset(row)] * c13) * c19 * _f39
+        )
 
-        qq.append(min(fq[offset(row)], c16) * c17 * 1000 / 60 / 60 / c21)
-        if row == 10:
-            assert qq == [0.0, 0.6172267285559908], qq
+        _coulombs.append(
+            min(_actual_current_draw[offset(row)], c16) * c17 * 1000 / 60 / 60 / c21
+        )
 
-        jw.append((not ks[offset(row)]) and (hi[offset(row)] <= c40))
-        if row == 10:
-            assert jw == [False, False], jw
-
-    # ng.append(
-    #     min(_f35 - fq[offset(row - 1)] * c19 * _f39, ng[offset(row - 1)] + c39) - c7
-    #     if oy[offset(row - 1)]
-    #     else (
-    #         0
-    #         if lo[offset(row - 1)] - 1 <= 0
-    #         else (
-    #             max(max(ng) * -1, ng[offset(8)] - c39)
-    #             if c37 == motors_c30
-    #             else max(0, max(max(ng) * -1, ng[offset(row - 1)] - c39))
-    #         )
-    #     )
-    # )
-
-    # eu.append(
-    #     max(
-    #         min(
-    #             (-1 if oy[offset(row - 1)] and ng[offset(row)] < 0 else 1)
-    #             * (dc[offset(row)] - c15)
-    #             / (c14 - c15)
-    #             * c12
-    #             * c21
-    #             - c33 * lo[offset(row)] / ao6
-    #             - oy[offset(row - 1)] * c33 / c21,
-    #             dy[offset(row)] / c19,
-    #         ),
-    #         max(eu) * -1,
-    #     )
-    # )
-    # gm.append(
-    #     0
-    #     if ks[offset(row - 1)] and oy[offset(row - 1)]
-    #     else eu[offset(row)] * c19 / s6 / c24 / c23 * 3.39 * c21
-    # )
-    # pu.append(
-    #     pu[offset(row - 1)]
-    #     + 0.5 * gm[offset(row)] * c17 ** 2
-    #     + lo[offset(row)] * c17
-    # )
-    # oy.append(pu[offset(row)] >= _f29)
+        _is_max_speed.append(
+            (not _is_finished_decelerating[offset(row)])
+            and (_abs_acceleration[offset(row)] <= c40)
+        )
 
     return {
         "tractive force": max_tractive_force_at_wheels,
@@ -472,9 +410,9 @@ def calc(
         "pushing current": output_current_max_tractive_force,
         "turning current": turning_current,
         "time to goal": None if ttg is None else nearest_multiple(ttg, 100),
-        "max speed": max(lo),
+        "max speed": max(_floor_speed),
         "avg speed": 0 if ttg is None else _f29 / ttg,
-        "min voltage": min(oc),
+        "min voltage": min(_system_voltage),
     }
 
 
