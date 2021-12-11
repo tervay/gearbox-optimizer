@@ -1,9 +1,14 @@
+import json
 from math import pi, sqrt
 from pprint import pprint
-import numpy as np
-import json
 from typing import List
+
+import numpy as np
+from rich.console import Console
+from rich.table import Table
 from tqdm import tqdm
+
+from motors import motors
 
 
 def signum(x):
@@ -24,8 +29,9 @@ def calc(
     wheel_diameter_: int,
     num_motors_: int,
     current_limit_: int,
+    motor_: str,
 ):
-    max_sim_time = _aa46 = 4
+    max_sim_time = _aa46 = 5
     min_gear_ratio = _aa47 = 3
     max_gear_ratio = _aa48 = 15
     filtering = _aa49 = 1
@@ -34,19 +40,23 @@ def calc(
     throttle_response_min = _aa52 = 0.5
     throttle_response_max = _aa53 = 0.99
 
-    neo_free_speed = 5676
-    neo_stall_torque = 2.590
-    neo_stall_current = 105
-    neo_free_current = 1.8
-    neo_spec_voltage = 12
-    neo_controller_current_limit = neo_stall_current
-    neo_controller_limited_torque = (
-        neo_stall_torque / neo_stall_current * neo_controller_current_limit
+    selected_motor_free_speed = motors[motor_]["freeSpeed"]["magnitude"]
+    selected_motor_stall_torque = motors[motor_]["stallTorque"]["magnitude"]
+    selected_motor_stall_current = motors[motor_]["stallCurrent"]["magnitude"]
+    selected_motor_free_current = motors[motor_]["freeCurrent"]["magnitude"]
+    selected_motor_spec_voltage = 12
+    selected_motor__controller_current_limit = selected_motor_stall_current
+    selected_motor__controller_limited_torque = (
+        selected_motor_stall_torque
+        / selected_motor_stall_current
+        * selected_motor__controller_current_limit
     )
-    neo_average_duty_cycle = 0.75
-    neo_peak_power = neo_free_speed / 2 * neo_stall_torque / 2 * 2 * pi / 60
-    neo_kv = neo_free_speed / neo_spec_voltage
-    neo_kt = neo_stall_torque / neo_stall_current
+    selected_motor__average_duty_cycle = 0.75
+    selected_motor__peak_power = (
+        selected_motor_free_speed / 2 * selected_motor_stall_torque / 2 * 2 * pi / 60
+    )
+    selected_motor_kv = selected_motor_free_speed / selected_motor_spec_voltage
+    selected_motor_kt = selected_motor_stall_torque / selected_motor_stall_current
     motors_c30 = "Reverse"
     motors_c31 = "Coast"
     motors_c32 = "Brake"
@@ -55,11 +65,11 @@ def calc(
         "Coast": 0.05,
         "Brake": 0.20,
     }
-    max_speed_acceleration_threshold = c40 = _aa51
+    max_speed_acceleration_threshold = c40 = max_speed_accel_threshold
 
     # num_motors = _f5 = 6
     _f5 = num_motors_
-    efficiency1 = _f7 = 0.975 ** (_f5 / 2)
+    efficiency1 = _f7 = 0.975 ** (num_motors_ / 2)
     efficiency2 = _f8 = 0.95
     efficiency3 = _f9 = 0.92
     # ratio = e45 = 7.56
@@ -76,7 +86,7 @@ def calc(
     weight_distribution_sides = _f22 = 0.5
     weight = _f25 = 120
     weight_auxilliary = _f26 = 0
-    sprint_distance = _f29 = 15
+    sprint_distance = _f29 = 10
     target_time_to_goal = _f30 = 2.0
     cycles_per_match = _f31 = 24
     deceleration_method = _f32 = "Brake"
@@ -91,35 +101,35 @@ def calc(
 
     num_sim_rows = c3 = 100
     expected_voltage_loss = c7 = 0.18
-    spec_voltage = c8 = neo_spec_voltage
+    spec_voltage = c8 = selected_motor_spec_voltage
     applied_voltage_ratio = c9 = (_f35 - c7) / c8
-    specced_free_speed = c10 = neo_free_speed
+    specced_free_speed = c10 = selected_motor_free_speed
     actual_free_speed = c11 = c10 / c8 * _f35
-    stall_torque = c12 = neo_stall_torque * c9
-    duty_cycle = c13 = neo_average_duty_cycle
-    stall_current = c14 = neo_stall_current * c9
-    free_current = c15 = neo_free_current * c9
-    current_limit = c16 = min([_f37, _f35 / 12 * _f40 * _f41 / _f5])
+    stall_torque = c12 = selected_motor_stall_torque * c9
+    duty_cycle = c13 = selected_motor__average_duty_cycle
+    stall_current = c14 = selected_motor_stall_current * c9
+    free_current = c15 = selected_motor_free_current * c9
+    current_limit = c16 = min([_f37, _f35 / 12 * _f40 * _f41 / num_motors_])
 
-    sim_time_res = c17 = _aa46 / c3
+    sim_time_res = c17 = max_sim_time / c3
     max_delta_volts = c18 = c17 * _f36
-    num_motors = c19 = _f5
+    num_motors = c19 = num_motors_
     ratio_spread = c20 = 1
-    gearbox_wheel_efficiency = c21 = _f7 * _f8 * _f9
+    gearbox_wheel_efficiency = c21 = efficiency1 * efficiency2 * efficiency3
     distance_to_goal = c22 = _f29 * 12 * 0.0254
     mass = c23 = (_f25 + _f26) * 0.4536
-    radius = c24 = _f15 / 2 * 0.0254
+    radius = c24 = wheel_diameter_ / 2 * 0.0254
     current_limited_max_motor_torque = c25 = (c16 - c15) / (c14 - c15) * c12
     weight_times_cof = c34 = c23 / 0.4536 * _f16 * 4.448
     max_torque_at_wheel = c35 = c34 * c24
-    max_motor_torque = c26 = c35 * e46 / c19 / c21
+    max_motor_torque = c26 = c35 * gearing / c19 / c21
     current_while_pushing = c27 = (c26 / c12 * (c14 - c15) + c15) * c19 * c13
     dist_coa_com = c28 = sqrt(
         ((1 - _f21) * _f19 - _f19 / 2) ** 2 + (_f20 * _f22 - (_f20 / 2)) ** 2
     )
     dimension_turn_cond = _f16 * _f20 > _f18 * (_f19 - 4 * c28 ** 2 / _f19)
 
-    geared_stall_torque = e62 = c12 * c19 / e46 * c21
+    geared_stall_torque = e62 = c12 * c19 / gearing * c21
 
     force_to_turn = c31 = (
         _f18
@@ -139,21 +149,26 @@ def calc(
     delta_volts = c39 = c38 * c17
 
     max_motor_torque_before_wheel_slip = e63 = c26
-    max_tractive_force_at_wheels = e65 = min(e63, c25) * c19 * e45 / c24 / 4.448 * c21
+    max_tractive_force_at_wheels = e65 = (
+        min(e63, c25) * c19 * ratio_ / c24 / 4.448 * c21
+    )
     output_current_max_tractive_force = e67 = (
         (min(e63, c25) / c12 * (c14 - c15) + c15) * c19 * c13 / c21
     )
+    voltage_max_tractive_force = (
+        battery_voltage_rest - output_current_max_tractive_force * battery_resistance
+    )
 
-    turning_motor_load = e71 = c32 * e46 / c19 + c33 * e46
+    turning_motor_load = e71 = c32 * gearing / c19 + c33 * gearing
     turning_current = e70 = min(
         ((e71 / c12) * (c14 - c15) + c15) * c19, _f37 * num_motors
     )
 
     s5 = c16
-    s6 = e46
-    ao6 = c11 * s6 * _f15 * pi / 12 / 60
+    s6 = gearing
+    ao6 = c11 * s6 * wheel_diameter_ * pi / 12 / 60
 
-    _times = r = list(np.arange(_aa46 / c3, _aa46, _aa46 / c3))
+    _times = r = list(np.arange(max_sim_time / c3, max_sim_time, max_sim_time / c3))
 
     offset = lambda n: n - 8
 
@@ -256,7 +271,7 @@ def calc(
             _floor_speed[offset(row)]
             * 12
             * 60
-            / (pi * _f15)
+            / (pi * wheel_diameter_)
             / s6
             * abs(_applied_voltage_ratios[offset(row)])
         )
@@ -287,8 +302,8 @@ def calc(
             if _is_finished_decelerating[offset(row - 1)]
             and _is_hit_target[offset(row - 1)]
             else abs(_attempted_torque_at_motor[offset(row)] / c12 * (c14 - c15) + c15)
-            * _aa49
-            + _attempted_current_draw[offset(row - 1)] * (1 - _aa49)
+            * filtering
+            + _attempted_current_draw[offset(row - 1)] * (1 - filtering)
         )
 
         _is_current_limiting.append(
@@ -400,7 +415,7 @@ def calc(
 
         _is_max_speed.append(
             (not _is_finished_decelerating[offset(row)])
-            and (_abs_acceleration[offset(row)] <= c40)
+            and (_abs_acceleration[offset(row)] <= max_speed_acceleration_threshold)
         )
 
     return {
@@ -413,6 +428,7 @@ def calc(
         "max speed": max(_floor_speed),
         "avg speed": 0 if ttg is None else _f29 / ttg,
         "min voltage": min(_system_voltage),
+        "push voltage": voltage_max_tractive_force,
     }
 
 
@@ -463,30 +479,16 @@ def cots_gearboxes() -> List[Gearbox]:
 
 
 gearboxes = cots_gearboxes()
-
-ratio_choices = np.arange(3.0, 40.0, 0.01)
-wheel_sizes = [
-    4,
-]
-num_motors = [4, 6]
-current_limits = list(range(20, 80, 2))
-enable_acceptable_ratio_ranges = False
-enabled_custom_gearboxes = False
-acceptable_ratio_range = {
-    # (motors, wheel_size): (min_ratio, max_ratio),
-    (2, 4): (5, 11),
-    (3, 4): (3.75, 10.5),
-    (2, 6): (8, 15),
-    (3, 6): (5.75, 15),
-}
+wheel_sizes = [4, 6]
+current_limits = list(range(20, 55, 1))
+motor = "NEO"
 
 PINION_MIN = 10
 PINION_MAX = 14
 GEAR_MIN = 20
-GEAR_MAX = 70
+GEAR_MAX = 50
 
-ratio_choices = []
-
+enabled_custom_gearboxes = False
 if enabled_custom_gearboxes:
     for g1 in range(PINION_MIN, PINION_MAX + 1):
         for g2 in range(GEAR_MIN, GEAR_MAX + 2, 2):
@@ -504,50 +506,36 @@ if enabled_custom_gearboxes:
                     )
 
 
-def ratio_to_num(ratio):
-    return 1 / ((ratio[0] / ratio[1]) * (ratio[2] / ratio[3]))
-
-
-# gearboxes = [Gearbox(name="asdf", vendors=[], motors=[3], ratios=[[[10, 60]]])]
-# current_limits = [45]
-# wheel_sizes = [4]
-
 progress = []
 options = []
 for gearbox in gearboxes:
     for wheel in wheel_sizes:
-        for motors in gearbox.motors:
+        for motor_count in gearbox.motors:
             for cl in current_limits:
-                if 2 * motors * cl > 300:
-                    continue
-
                 for ratio in gearbox.ratios:
-                    progress.append([gearbox, wheel, motors, cl, ratio])
+                    progress.append([gearbox, wheel, motor_count, cl, ratio])
 
 
-for (gearbox, wheel, motors, cl, ratio) in tqdm(progress):
+for (gearbox, wheel, motor_count, cl, ratio) in tqdm(progress):
     stages = ratio[:-1]
     total_reduction = ratio[-1]
-    min_allowed, max_allowed = acceptable_ratio_range[(motors, wheel)]
-    if (
-        not (min_allowed < (1 / total_reduction) < max_allowed)
-        and enable_acceptable_ratio_ranges
-    ):
+    if len(stages) > 4:
         continue
 
     ilite_data = calc(
         1 / overall_ratio(stages),
         wheel_diameter_=wheel,
-        num_motors_=motors * 2,
+        num_motors_=motor_count * 2,
         current_limit_=cl,
+        motor_=motor,
     )
     if not ilite_data["can turn"]:
         continue
-    if ilite_data["pushing current"] > 240:
-        continue
+    # if ilite_data["pushing current"] > 240:
+    #     continue
     if ilite_data["time to goal"] is None:
         continue
-    if ilite_data["min voltage"] <= 7:
+    if ilite_data["min voltage"] <= 7 or ilite_data["push voltage"] <= 7:
         continue
 
     options.append(
@@ -556,7 +544,7 @@ for (gearbox, wheel, motors, cl, ratio) in tqdm(progress):
             "total reduction": round(1 / total_reduction, 2),
             "stages": tuple(stages),
             "current limit": cl,
-            "motors": motors,
+            "motors": motor_count,
             "wheel size": wheel,
             "tractive force": round(
                 ilite_data["tractive force"],
@@ -573,28 +561,65 @@ for (gearbox, wheel, motors, cl, ratio) in tqdm(progress):
             "pushing current": round(ilite_data["pushing current"]),
             "turning current": round(ilite_data["turning current"]),
             "time to goal": ilite_data["time to goal"],
-            "max speed": ilite_data["max speed"],
+            "max speed": nearest_multiple(ilite_data["max speed"], 20),
             "avg speed": ilite_data["avg speed"],
             "min voltage": nearest_multiple(ilite_data["min voltage"], 20),
+            "test": nearest_multiple(
+                ilite_data["time to goal"] / ilite_data["tractive force"], 10000
+            ),
+            "push voltage": round(ilite_data["push voltage"]),
         }
     )
 
 options = [dict(t) for t in {tuple(d.items()) for d in options}]
-
-
-pprint(
-    sorted(
-        options,
-        key=lambda t: (
-            t["tractive force"],
-            -t["time to goal"],
-            t["min voltage"],
-            -t["pushing current"],
-            -t["turning current"],
-            t["fps"],
-            -(t["motors"] * t["current limit"]),
-            -len(t["stages"]),
-        ),
-        reverse=True,
-    )
+sorted_options = sorted(
+    options,
+    key=lambda t: (
+        -t["test"],
+        -t["time to goal"],
+        t["tractive force"],
+        t["min voltage"],
+        -t["pushing current"],
+        -t["turning current"],
+        t["max speed"],
+        -len(t["stages"]),
+    ),
+    reverse=True,
 )
+
+table = Table(show_header=True, width=200)
+for col in [
+    "Name",
+    "Motors",
+    "Whl",
+    "CurrLim",
+    "Test",
+    "TTG",
+    "TractForce",
+    "MinVolt",
+    "PushCurr",
+    "TurnCurr",
+    "MaxSpd",
+    "Stages",
+]:
+    table.add_column(col, width={"Name": 47, "Stages": 25}.get(col, None))
+
+for opt in sorted_options:
+    table.add_row(
+        opt["gearbox"],
+        str(opt["motors"] * 2),
+        str(opt["wheel size"]),
+        str(opt["current limit"]),
+        str(opt["test"]),
+        str(opt["time to goal"]),
+        str(opt["tractive force"]),
+        str(opt["min voltage"]),
+        str(opt["pushing current"]),
+        str(opt["turning current"]),
+        str(opt["max speed"]),
+        str(opt["stages"]),
+    )
+
+with open(f"rich_{motor}.txt", "w+") as f:
+    console = Console(file=f, width=200)
+    console.print(table)
