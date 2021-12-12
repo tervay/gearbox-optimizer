@@ -328,7 +328,7 @@ def calc(
         )
 
         # ng
-        if _is_hit_target[offset(row - 1)] == 0:
+        if not _is_hit_target[offset(row - 1)]:
             val = (
                 min(
                     battery_voltage_rest
