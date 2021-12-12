@@ -30,6 +30,7 @@ def calc(
     num_motors_: int,
     current_limit_: int,
     motor_: str,
+    sprint_distance_: int,
 ):
     max_sim_time = _aa46 = 5
     min_gear_ratio = _aa47 = 3
@@ -86,7 +87,7 @@ def calc(
     weight_distribution_sides = _f22 = 0.5
     weight = _f25 = 120
     weight_auxilliary = _f26 = 0
-    sprint_distance = _f29 = 10
+    sprint_distance = _f29 = sprint_distance_
     target_time_to_goal = _f30 = 2.0
     cycles_per_match = _f31 = 24
     deceleration_method = _f32 = "Brake"
@@ -480,8 +481,9 @@ def cots_gearboxes() -> List[Gearbox]:
 
 gearboxes = cots_gearboxes()
 wheel_sizes = [4, 6]
-current_limits = list(range(20, 55, 1))
-motor = "Falcon 500"
+current_limits = list(range(10, 80, 2))
+motor = "NEO"
+sprint_distance = 40
 
 PINION_MIN = 10
 PINION_MAX = 14
@@ -519,15 +521,16 @@ for gearbox in gearboxes:
 for (gearbox, wheel, motor_count, cl, ratio) in tqdm(progress):
     stages = ratio[:-1]
     total_reduction = ratio[-1]
-    if len(stages) > 4:
-        continue
+    # if len(stages) > 4:
+    #     continue
 
     ilite_data = calc(
         1 / overall_ratio(stages),
         wheel_diameter_=wheel,
-        num_motors_=motor_count * 2,
+        num_motors_=motor_count * 4,
         current_limit_=cl,
         motor_=motor,
+        sprint_distance_=sprint_distance,
     )
     if not ilite_data["can turn"]:
         continue
