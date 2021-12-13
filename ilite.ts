@@ -192,55 +192,53 @@ function ilite(args: {
     decelerationMethodToAccelerationThreshold[
       args.fieldAndMatchSettings.decelerationMethod
     ];
-  const spec_voltage = 12;
-  const expected_voltage_loss = 0.18;
-  const num_sim_rows = 100;
-  const applied_voltage_ratio =
-    (args.electricalSystemSettings.batteryVoltageAtRest -
-      expected_voltage_loss) /
-    spec_voltage;
-  const actual_free_speed =
+  const specVoltage = 12;
+  const expectedVoltageLoss = 0.18;
+  const numSimRows = 100;
+  const appliedVoltageRatio =
+    (args.electricalSystemSettings.batteryVoltageAtRest - expectedVoltageLoss) /
+    specVoltage;
+  const actualFreeSpeed =
     (args.motorsAndGearbox.motor.freeSpeed.magnitude *
       args.electricalSystemSettings.batteryVoltageAtRest) /
-    spec_voltage;
-  const stall_torque =
-    args.motorsAndGearbox.motor.stallTorque.magnitude * applied_voltage_ratio;
-  const duty_cycle = 0.75;
-  const stall_current =
-    args.motorsAndGearbox.motor.stallCurrent.magnitude * applied_voltage_ratio;
-  const free_current =
-    args.motorsAndGearbox.motor.freeCurrent.magnitude * applied_voltage_ratio;
-  const current_limit = Math.min(
+    specVoltage;
+  const stallTorque =
+    args.motorsAndGearbox.motor.stallTorque.magnitude * appliedVoltageRatio;
+  const dutyCycle = 0.75;
+  const stallCurrent =
+    args.motorsAndGearbox.motor.stallCurrent.magnitude * appliedVoltageRatio;
+  const freeCurrent =
+    args.motorsAndGearbox.motor.freeCurrent.magnitude * appliedVoltageRatio;
+  const currentLimit = Math.min(
     args.electricalSystemSettings.motorCurrentLimit,
     ((args.electricalSystemSettings.batteryVoltageAtRest / 12) *
       args.electricalSystemSettings.batteryAmpHourRating *
       args.electricalSystemSettings.peakBatteryDischarge) /
       args.motorsAndGearbox.motorCount
   );
-  const sim_time_res = args.advancedSettings.maxSimulationTime / num_sim_rows;
-  const gearbox_wheel_efficiency = efficiencies.reduce(
+  const simTimeRes = args.advancedSettings.maxSimulationTime / numSimRows;
+  const gearboxWheelEfficiency = efficiencies.reduce(
     (prev, curr) => prev * curr
   );
   const mass = totalWeight * 0.4536;
   const radius = (args.wheelsAndWheelBase.wheelDiameter / 2) * 0.0254;
-  const current_limited_max_motor_torque =
-    ((current_limit - free_current) / (stall_current - free_current)) *
-    stall_torque;
-  const weight_times_cof =
+  const currentLimitedMaxMotorTorque =
+    ((currentLimit - freeCurrent) / (stallCurrent - freeCurrent)) * stallTorque;
+  const weightTimesCOF =
     (mass / 0.4536) *
     args.wheelsAndWheelBase.coefficientOfFrictionStatic *
     4.448;
-  const max_torque_at_wheel = weight_times_cof * radius;
-  const max_motor_torque =
-    (max_torque_at_wheel * gearing) /
+  const maxTorqueAtWheel = weightTimesCOF * radius;
+  const maxMotorTorque =
+    (maxTorqueAtWheel * gearing) /
     args.motorsAndGearbox.motorCount /
-    gearbox_wheel_efficiency;
-  const current_while_pushing =
-    ((max_motor_torque / stall_torque) * (stall_current - free_current) +
-      free_current) *
+    gearboxWheelEfficiency;
+  const currentWhilePushing =
+    ((maxMotorTorque / stallTorque) * (stallCurrent - freeCurrent) +
+      freeCurrent) *
     args.motorsAndGearbox.motorCount *
-    duty_cycle;
-  const dist_coa_com = Math.sqrt(
+    dutyCycle;
+  const distanceCOM = Math.sqrt(
     ((1 - args.wheelsAndWheelBase.weightDistributionFrontBack) *
       args.wheelsAndWheelBase.wheelBaseLength -
       args.wheelsAndWheelBase.wheelBaseLength / 2) **
@@ -250,68 +248,62 @@ function ilite(args: {
         args.wheelsAndWheelBase.wheelTrackWidth / 2) **
         2
   );
-  const dimension_turn_cond =
+  const dimensionTurnCondition =
     args.wheelsAndWheelBase.coefficientOfFrictionStatic *
       args.wheelsAndWheelBase.wheelTrackWidth >
     args.wheelsAndWheelBase.coefficientOfFrictionLateral *
       (args.wheelsAndWheelBase.wheelBaseLength -
-        (4 * dist_coa_com ** 2) / args.wheelsAndWheelBase.wheelBaseLength);
-  const geared_stall_torque =
-    ((stall_torque * args.motorsAndGearbox.motorCount) / gearing) *
-    gearbox_wheel_efficiency;
-  const force_to_turn =
+        (4 * distanceCOM ** 2) / args.wheelsAndWheelBase.wheelBaseLength);
+  const gearedStallTorque =
+    ((stallTorque * args.motorsAndGearbox.motorCount) / gearing) *
+    gearboxWheelEfficiency;
+  const forceToTurn =
     ((args.wheelsAndWheelBase.coefficientOfFrictionLateral *
       totalWeight *
       4.448222) /
       (args.wheelsAndWheelBase.wheelTrackWidth * 0.0254)) *
     ((args.wheelsAndWheelBase.wheelBaseLength * 0.0254) / 4 -
-      (dist_coa_com * 0.0254) ** 2 /
+      (distanceCOM * 0.0254) ** 2 /
         (args.wheelsAndWheelBase.wheelBaseLength * 0.0254));
-  const force_turn_cond = geared_stall_torque / radius / 4 > force_to_turn;
-  const torque_to_turn = force_to_turn * radius;
-  const estimated_torque_loss =
-    (((1 - gearbox_wheel_efficiency) * 4.448222 * totalWeight) /
+  const torqueToTurn = forceToTurn * radius;
+  const forceTurnConditon = gearedStallTorque / radius / 4 > forceToTurn;
+  const estimatedTorqueLoss =
+    (((1 - gearboxWheelEfficiency) * 4.448222 * totalWeight) /
       (4.448222 * totalWeight)) *
-    stall_torque;
-  const delta_volts =
-    args.electricalSystemSettings.appliedVoltageRamp * sim_time_res;
-  const max_motor_torque_before_wheel_slip = max_motor_torque;
-  const max_tractive_force_at_wheels =
-    ((Math.min(
-      max_motor_torque_before_wheel_slip,
-      current_limited_max_motor_torque
-    ) *
+    stallTorque;
+  const deltaVolts =
+    args.electricalSystemSettings.appliedVoltageRamp * simTimeRes;
+  const maxMotorTorqueBeforeWheelSlip = maxMotorTorque;
+  const maxTractiveForceAtWheels =
+    ((Math.min(maxMotorTorqueBeforeWheelSlip, currentLimitedMaxMotorTorque) *
       args.motorsAndGearbox.motorCount *
       args.motorsAndGearbox.ratio) /
       radius /
       4.448) *
-    gearbox_wheel_efficiency;
-  const output_current_max_tractive_force =
-    (((Math.min(
-      max_motor_torque_before_wheel_slip,
-      current_limited_max_motor_torque
-    ) /
-      stall_torque) *
-      (stall_current - free_current) +
-      free_current) *
+    gearboxWheelEfficiency;
+  const outputCurrentAtMaxTractiveForce =
+    (((Math.min(maxMotorTorqueBeforeWheelSlip, currentLimitedMaxMotorTorque) /
+      stallTorque) *
+      (stallCurrent - freeCurrent) +
+      freeCurrent) *
       args.motorsAndGearbox.motorCount *
-      duty_cycle) /
-    gearbox_wheel_efficiency;
-  const voltage_max_tractive_force =
+      dutyCycle) /
+    gearboxWheelEfficiency;
+  const voltageAtMaxTractiveForce =
     args.electricalSystemSettings.batteryVoltageAtRest -
-    output_current_max_tractive_force *
+    outputCurrentAtMaxTractiveForce *
       args.electricalSystemSettings.batteryResistance;
-  const turning_motor_load =
-    (torque_to_turn * gearing) / args.motorsAndGearbox.motorCount +
-    estimated_torque_loss * gearing;
-  const turning_Current = Math.min(
-    ((turning_motor_load / stall_torque) * (stall_current - free_current) +
-      free_current) *
+  const turningMotorLoad =
+    (torqueToTurn * gearing) / args.motorsAndGearbox.motorCount +
+    estimatedTorqueLoss * gearing;
+  const turningCurrent = Math.min(
+    ((turningMotorLoad / stallTorque) * (stallCurrent - freeCurrent) +
+      freeCurrent) *
       args.motorsAndGearbox.motorCount,
-    current_limit * args.motorsAndGearbox.motorCount
+    currentLimit * args.motorsAndGearbox.motorCount
   );
-  const max_theoretical_speed =
-    (actual_free_speed *
+  const maxTheoreticalSpeed =
+    (actualFreeSpeed *
       gearing *
       args.wheelsAndWheelBase.wheelDiameter *
       Math.PI) /
@@ -335,17 +327,17 @@ function ilite(args: {
   const _applied_acceleration = [
     _is_finished_decelerating[offset(8)] && _is_hit_target[offset(8)]
       ? 0
-      : ((_actual_applied_torque[offset(8)] * stall_current) /
+      : ((_actual_applied_torque[offset(8)] * stallCurrent) /
           gearing /
           radius /
           mass) *
         3.39 *
-        gearbox_wheel_efficiency,
+        gearboxWheelEfficiency,
   ];
 
   const _abs_acceleration = [Math.abs(_applied_acceleration[offset(8)])];
   const _clamped_per_motor_current_draw = [
-    Math.min(Math.abs(_attempted_current_draw[offset(8)]), current_limit) *
+    Math.min(Math.abs(_attempted_current_draw[offset(8)]), currentLimit) *
       Math.sign(_attempted_current_draw[offset(8)]),
   ];
 
@@ -354,12 +346,11 @@ function ilite(args: {
       ? 0
       : Math.min(
           (Math.abs(
-            ((stall_current - free_current) *
-              _actual_applied_torque[offset(8)]) /
-              stall_torque
+            ((stallCurrent - freeCurrent) * _actual_applied_torque[offset(8)]) /
+              stallTorque
           ) +
-            free_current) /
-            gearbox_wheel_efficiency,
+            freeCurrent) /
+            gearboxWheelEfficiency,
           _clamped_per_motor_current_draw[offset(8)]
         ),
   ];
@@ -367,22 +358,22 @@ function ilite(args: {
   const _is_current_limiting = [
     Math.abs(_actual_current_draw[offset(8)]) >=
       _clamped_per_motor_current_draw[offset(8)] - 1 &&
-      Math.abs(_attempted_current_draw[offset(8)]) >= current_limit,
+      Math.abs(_attempted_current_draw[offset(8)]) >= currentLimit,
   ];
   const _system_voltage = [
     args.electricalSystemSettings.batteryVoltageAtRest -
       _actual_current_draw[offset(8)] *
-        duty_cycle *
+        dutyCycle *
         args.motorsAndGearbox.motorCount *
         args.electricalSystemSettings.batteryResistance,
   ];
   const _coulombs = [
-    (Math.min(_actual_current_draw[offset(8)], current_limit) *
-      sim_time_res *
+    (Math.min(_actual_current_draw[offset(8)], currentLimit) *
+      simTimeRes *
       1000) /
       60 /
       60 /
-      gearbox_wheel_efficiency,
+      gearboxWheelEfficiency,
   ];
   const _applied_cof = [
     (mass / 0.4536) *
@@ -393,9 +384,9 @@ function ilite(args: {
   ];
   const _is_wheel_slipping = [false];
   const _times = linspace(
-    args.advancedSettings.maxSimulationTime / num_sim_rows,
+    args.advancedSettings.maxSimulationTime / numSimRows,
     args.advancedSettings.maxSimulationTime,
-    args.advancedSettings.maxSimulationTime / num_sim_rows
+    args.advancedSettings.maxSimulationTime / numSimRows
   );
 
   let ttg = 0;
@@ -404,7 +395,7 @@ function ilite(args: {
 
     _floor_speed.push(
       Math.max(
-        _applied_acceleration[offset(row - 1)] * sim_time_res +
+        _applied_acceleration[offset(row - 1)] * simTimeRes +
           _floor_speed[offset(row - 1)],
         0
       )
@@ -417,8 +408,8 @@ function ilite(args: {
             _actual_current_draw[offset(row - 1)] *
               args.motorsAndGearbox.motorCount *
               args.electricalSystemSettings.batteryResistance,
-          _applied_voltage[offset(row - 1)] + delta_volts
-        ) - expected_voltage_loss
+          _applied_voltage[offset(row - 1)] + deltaVolts
+        ) - expectedVoltageLoss
       );
     } else {
       if (_floor_speed[offset(row - 1)] - 1 <= 0) {
@@ -428,7 +419,7 @@ function ilite(args: {
           _applied_voltage.push(
             Math.max(
               Math.max(..._applied_voltage) * -1,
-              _applied_voltage[offset(row - 1)] - delta_volts
+              _applied_voltage[offset(row - 1)] - deltaVolts
             )
           );
         } else {
@@ -436,7 +427,7 @@ function ilite(args: {
             Math.max(
               0,
               Math.max(..._applied_voltage) * -1,
-              _applied_voltage[offset(row - 1)] - delta_volts
+              _applied_voltage[offset(row - 1)] - deltaVolts
             )
           );
         }
@@ -466,16 +457,16 @@ function ilite(args: {
     } else {
       if (_applied_voltage[offset(row)] == 0) {
         _attempted_torque_at_motor.push(
-          (-(_attempted_current_draw[offset(row - 1)] + free_current) /
-            (stall_current - free_current)) *
-            stall_torque
+          (-(_attempted_current_draw[offset(row - 1)] + freeCurrent) /
+            (stallCurrent - freeCurrent)) *
+            stallTorque
         );
       } else {
         _attempted_torque_at_motor.push(
-          ((actual_free_speed * _applied_voltage_ratios[offset(row)] -
+          ((actualFreeSpeed * _applied_voltage_ratios[offset(row)] -
             _motor_speed[offset(row)]) /
-            (actual_free_speed * _applied_voltage_ratios[offset(row)])) *
-            stall_torque *
+            (actualFreeSpeed * _applied_voltage_ratios[offset(row)])) *
+            stallTorque *
             _applied_voltage_ratios[offset(row)]
         );
       }
@@ -486,9 +477,9 @@ function ilite(args: {
         _is_hit_target[offset(row - 1)]
         ? 0
         : Math.abs(
-            (_attempted_torque_at_motor[offset(row)] / stall_torque) *
-              (stall_current - free_current) +
-              free_current
+            (_attempted_torque_at_motor[offset(row)] / stallTorque) *
+              (stallCurrent - freeCurrent) +
+              freeCurrent
           ) *
             args.advancedSettings.filtering +
             _attempted_current_draw[offset(row - 1)] *
@@ -496,13 +487,13 @@ function ilite(args: {
     );
 
     _is_current_limiting.push(
-      Math.abs(_attempted_current_draw[offset(row)]) >= current_limit
+      Math.abs(_attempted_current_draw[offset(row)]) >= currentLimit
     );
 
     _clamped_per_motor_current_draw.push(
       Math.min(
         Math.abs(_attempted_current_draw[offset(row)]),
-        current_limit * Math.sign(_attempted_current_draw[offset(row)])
+        currentLimit * Math.sign(_attempted_current_draw[offset(row)])
       )
     );
 
@@ -513,15 +504,14 @@ function ilite(args: {
           _applied_voltage[offset(row)] < 0
             ? -1
             : 1) *
-            (_clamped_per_motor_current_draw[offset(row)] - free_current)) /
-            (stall_current - free_current)) *
-            stall_torque *
-            gearbox_wheel_efficiency -
-            (estimated_torque_loss * _floor_speed[offset(row)]) /
-              max_theoretical_speed -
-            ((_is_hit_target[offset(row - 1)] ? 1 : 0) *
-              estimated_torque_loss) /
-              gearbox_wheel_efficiency,
+            (_clamped_per_motor_current_draw[offset(row)] - freeCurrent)) /
+            (stallCurrent - freeCurrent)) *
+            stallTorque *
+            gearboxWheelEfficiency -
+            (estimatedTorqueLoss * _floor_speed[offset(row)]) /
+              maxTheoreticalSpeed -
+            ((_is_hit_target[offset(row - 1)] ? 1 : 0) * estimatedTorqueLoss) /
+              gearboxWheelEfficiency,
           _applied_cof[offset(row - 1)] / args.motorsAndGearbox.motorCount
         ),
         Math.max(..._actual_applied_torque) * -1
@@ -546,15 +536,15 @@ function ilite(args: {
             radius /
             mass) *
             3.39 *
-            gearbox_wheel_efficiency
+            gearboxWheelEfficiency
     );
 
     _abs_acceleration.push(Math.abs(_applied_acceleration[offset(row)]));
 
     _distance.push(
       _distance[offset(row - 1)] +
-        0.5 * _applied_acceleration[offset(row)] * sim_time_res ** 2 +
-        _floor_speed[offset(row)] * sim_time_res
+        0.5 * _applied_acceleration[offset(row)] * simTimeRes ** 2 +
+        _floor_speed[offset(row)] * simTimeRes
     );
 
     _is_hit_target.push(
@@ -590,13 +580,13 @@ function ilite(args: {
         ? 0
         : Math.min(
             (Math.abs(
-              ((stall_current - free_current) *
+              ((stallCurrent - freeCurrent) *
                 _actual_applied_torque[offset(row)]) /
-                stall_torque /
-                gearbox_wheel_efficiency
+                stallTorque /
+                gearboxWheelEfficiency
             ) +
-              free_current) /
-              gearbox_wheel_efficiency,
+              freeCurrent) /
+              gearboxWheelEfficiency,
             _clamped_per_motor_current_draw[offset(row)]
           )
     );
@@ -604,18 +594,18 @@ function ilite(args: {
     _system_voltage.push(
       args.electricalSystemSettings.batteryVoltageAtRest -
         _actual_current_draw[offset(row)] *
-          duty_cycle *
+          dutyCycle *
           args.motorsAndGearbox.motorCount *
           args.electricalSystemSettings.batteryResistance
     );
 
     _coulombs.push(
-      (Math.min(_actual_current_draw[offset(row)], current_limit) *
-        sim_time_res *
+      (Math.min(_actual_current_draw[offset(row)], currentLimit) *
+        simTimeRes *
         1000) /
         60 /
         60 /
-        gearbox_wheel_efficiency
+        gearboxWheelEfficiency
     );
 
     _is_max_speed.push(
@@ -626,7 +616,7 @@ function ilite(args: {
   }
 
   console.log({
-    max_tractive_force_at_wheels,
+    max_tractive_force_at_wheels: maxTractiveForceAtWheels,
     ttg,
   });
 }
