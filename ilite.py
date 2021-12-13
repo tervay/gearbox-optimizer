@@ -1,6 +1,6 @@
 import json
 from math import pi, sqrt
-from pprint import pprint
+from pprint import pprint, pformat
 from typing import List
 
 import numpy as np
@@ -9,6 +9,9 @@ from rich.table import Table
 from tqdm import tqdm
 
 from motors import motors
+
+import plotly.graph_objects as go
+import plotly.express as px
 
 
 def signum(x):
@@ -607,7 +610,7 @@ gearboxes = cots_gearboxes()
 wheel_sizes = [4, 6]
 current_limits = list(range(10, 80, 2))
 motor = "NEO"
-sprint_distance = 40
+sprint_distance = 15
 
 PINION_MIN = 10
 PINION_MAX = 14
@@ -645,8 +648,8 @@ for gearbox in gearboxes:
 for (gearbox, wheel, motor_count, cl, ratio) in tqdm(progress):
     stages = ratio[:-1]
     total_reduction = ratio[-1]
-    # if len(stages) > 4:
-    #     continue
+    if len(stages) > 4:
+        continue
 
     ilite_data = calc(
         1 / overall_ratio(stages),
@@ -675,7 +678,6 @@ for (gearbox, wheel, motor_count, cl, ratio) in tqdm(progress):
             "wheel size": wheel,
             "tractive force": round(
                 ilite_data["tractive force"],
-                2,
             ),
             "fps": round(
                 fps(
@@ -731,6 +733,42 @@ for col in [
 ]:
     table.add_column(col, width={"Name": 47, "Stages": 25}.get(col, None))
 
+
+cleaned_options = []
+for option in sorted(options, key=lambda o: -o["current limit"]):
+    found = False
+    for cleaned_option in cleaned_options:
+        if [
+            option["gearbox"],
+            option["motors"],
+            option["wheel size"],
+            option["stages"],
+        ] == [
+            cleaned_option["gearbox"],
+            cleaned_option["motors"],
+            cleaned_option["wheel size"],
+            cleaned_option["stages"],
+        ]:
+            found = True
+
+    if not found:
+        cleaned_options.append(option)
+
+sorted_options = sorted(
+    cleaned_options,
+    key=lambda t: (
+        -t["test"],
+        -t["time to goal"],
+        t["tractive force"],
+        t["min voltage"],
+        -t["pushing current"],
+        -t["turning current"],
+        t["max speed"],
+        -len(t["stages"]),
+    ),
+    reverse=True,
+)
+
 for opt in sorted_options:
     table.add_row(
         opt["gearbox"],
@@ -750,3 +788,44 @@ for opt in sorted_options:
 with open(f"rich_{motor}.txt", "w+") as f:
     console = Console(file=f, width=200)
     console.print(table)
+
+
+def graph(cleaned_options):
+
+    motors4 = [o for o in cleaned_options if o["motors"] == 2]
+    motors6 = [o for o in cleaned_options if o["motors"] == 3]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=[o["time to goal"] for o in motors4],
+            y=[o["tractive force"] for o in motors4],
+            text=[pformat(o) for o in motors4],
+            name="4 Motors",
+            marker_color="blue",
+            mode="markers",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[o["time to goal"] for o in motors6],
+            y=[o["tractive force"] for o in motors6],
+            text=[pformat(o) for o in motors6],
+            name="6 Motors",
+            marker_color="red",
+            mode="markers",
+        )
+    )
+
+    fig.update_yaxes(rangemode="tozero")
+    fig.update_xaxes(rangemode="tozero")
+    fig.update_layout(
+        xaxis_title="Time to Goal (s) (Rounded to nearest 0.05s)",
+        yaxis_title="Tractive Force (lbs) (Rounded to nearest 0.1lbs)",
+        title=f"Tractive Force vs Time to Goal in COTS Gearboxes ({sprint_distance} ft sprint, {motor} motor)",
+    )
+
+    fig.show()
+
+
+graph(cleaned_options)
