@@ -10,6 +10,13 @@ function linspace(start: number, stop: number, step: number): number[] {
   return ret;
 }
 
+function* enumerate<T>(it: Iterable<T>, start = 0): Iterable<[number, T]> {
+  let i = start;
+  for (const x of it) {
+    yield [i++, x];
+  }
+}
+
 type Measurement = {
   magnitude: number;
   unit: string;
@@ -310,7 +317,6 @@ function ilite(args: {
     12 /
     60;
 
-  const offset = (n: number) => n - 8;
   const appliedVoltageRatios = [0];
   const motorSpeed = [0];
   const attemptedTorqueAtMotor = [0];
@@ -322,54 +328,50 @@ function ilite(args: {
   const floorSpeed = [0];
   const appliedVoltage = [0];
   const isHitTarget = [
-    distanceTraveled[offset(8)] >= args.fieldAndMatchSettings.sprintDistance,
+    distanceTraveled[0] >= args.fieldAndMatchSettings.sprintDistance,
   ];
-  const isFinishedDecelerating = [isHitTarget[offset(8)]];
+  const isFinishedDecelerating = [isHitTarget[0]];
   const appliedAcceleration = [
-    isFinishedDecelerating[offset(8)] && isHitTarget[offset(8)]
+    isFinishedDecelerating[0] && isHitTarget[0]
       ? 0
-      : ((actualAppliedTorque[offset(8)] * stallCurrent) /
-          gearing /
-          radius /
-          mass) *
+      : ((actualAppliedTorque[0] * stallCurrent) / gearing / radius / mass) *
         3.39 *
         gearboxWheelEfficiency,
   ];
 
-  const absAcceleration = [Math.abs(appliedAcceleration[offset(8)])];
+  const absAcceleration = [Math.abs(appliedAcceleration[0])];
   const clampedPerMotorCurrentDraw = [
-    Math.min(Math.abs(attemptedCurrentDraw[offset(8)]), currentLimit) *
-      Math.sign(attemptedCurrentDraw[offset(8)]),
+    Math.min(Math.abs(attemptedCurrentDraw[0]), currentLimit) *
+      Math.sign(attemptedCurrentDraw[0]),
   ];
 
   const actualCurrentDraw = [
-    isFinishedDecelerating[offset(8)] && isHitTarget[offset(8)]
+    isFinishedDecelerating[0] && isHitTarget[0]
       ? 0
       : Math.min(
           (Math.abs(
-            ((stallCurrent - freeCurrent) * actualAppliedTorque[offset(8)]) /
+            ((stallCurrent - freeCurrent) * actualAppliedTorque[0]) /
               stallTorque
           ) +
             freeCurrent) /
             gearboxWheelEfficiency,
-          clampedPerMotorCurrentDraw[offset(8)]
+          clampedPerMotorCurrentDraw[0]
         ),
   ];
-  const absAppliedVoltage = [Math.abs(appliedVoltage[offset(8)])];
+  const absAppliedVoltage = [Math.abs(appliedVoltage[0])];
   const isCurrentLimiting = [
-    Math.abs(actualCurrentDraw[offset(8)]) >=
-      clampedPerMotorCurrentDraw[offset(8)] - 1 &&
-      Math.abs(attemptedCurrentDraw[offset(8)]) >= currentLimit,
+    Math.abs(actualCurrentDraw[0]) >= clampedPerMotorCurrentDraw[0] - 1 &&
+      Math.abs(attemptedCurrentDraw[0]) >= currentLimit,
   ];
   const systemVoltage = [
     args.electricalSystemSettings.batteryVoltageAtRest -
-      actualCurrentDraw[offset(8)] *
+      actualCurrentDraw[0] *
         dutyCycle *
         args.motorsAndGearbox.motorCount *
         args.electricalSystemSettings.batteryResistance,
   ];
   const coulombs = [
-    (Math.min(actualCurrentDraw[offset(8)], currentLimit) * simTimeRes * 1000) /
+    (Math.min(actualCurrentDraw[0], currentLimit) * simTimeRes * 1000) /
       60 /
       60 /
       gearboxWheelEfficiency,
@@ -388,36 +390,33 @@ function ilite(args: {
   );
 
   let ttg = 0;
-  for (const [row_, time] of timesteps.entries()) {
-    const row = row_ + 9;
-
+  for (const [row, time] of enumerate(timesteps, 1)) {
     floorSpeed.push(
       Math.max(
-        appliedAcceleration[offset(row - 1)] * simTimeRes +
-          floorSpeed[offset(row - 1)],
+        appliedAcceleration[row - 1] * simTimeRes + floorSpeed[row - 1],
         0
       )
     );
 
-    if (!isHitTarget[offset(row - 1)]) {
+    if (!isHitTarget[row - 1]) {
       appliedVoltage.push(
         Math.min(
           args.electricalSystemSettings.batteryVoltageAtRest -
-            actualCurrentDraw[offset(row - 1)] *
+            actualCurrentDraw[row - 1] *
               args.motorsAndGearbox.motorCount *
               args.electricalSystemSettings.batteryResistance,
-          appliedVoltage[offset(row - 1)] + deltaVolts
+          appliedVoltage[row - 1] + deltaVolts
         ) - expectedVoltageLoss
       );
     } else {
-      if (floorSpeed[offset(row - 1)] - 1 <= 0) {
+      if (floorSpeed[row - 1] - 1 <= 0) {
         appliedVoltage.push(0);
       } else {
         if (args.fieldAndMatchSettings.decelerationMethod == "Reverse") {
           appliedVoltage.push(
             Math.max(
               Math.max(...appliedVoltage) * -1,
-              appliedVoltage[offset(row - 1)] - deltaVolts
+              appliedVoltage[row - 1] - deltaVolts
             )
           );
         } else {
@@ -425,7 +424,7 @@ function ilite(args: {
             Math.max(
               0,
               Math.max(...appliedVoltage) * -1,
-              appliedVoltage[offset(row - 1)] - deltaVolts
+              appliedVoltage[row - 1] - deltaVolts
             )
           );
         }
@@ -433,99 +432,91 @@ function ilite(args: {
     }
 
     appliedVoltageRatios.push(
-      appliedVoltage[offset(row)] /
-        args.electricalSystemSettings.batteryVoltageAtRest
+      appliedVoltage[row] / args.electricalSystemSettings.batteryVoltageAtRest
     );
 
-    absAppliedVoltage.push(Math.abs(appliedVoltage[offset(row)]));
+    absAppliedVoltage.push(Math.abs(appliedVoltage[row]));
 
     motorSpeed.push(
-      ((floorSpeed[offset(row)] * 12 * 60) /
+      ((floorSpeed[row] * 12 * 60) /
         (Math.PI * args.wheelsAndWheelBase.wheelDiameter) /
         gearing) *
-        Math.abs(appliedVoltageRatios[offset(row)])
+        Math.abs(appliedVoltageRatios[row])
     );
 
     if (
-      isFinishedDecelerating[offset(row - 1)] ||
+      isFinishedDecelerating[row - 1] ||
       (args.fieldAndMatchSettings.decelerationMethod == "Brake" &&
-        isHitTarget[offset(row - 1)])
+        isHitTarget[row - 1])
     ) {
       attemptedTorqueAtMotor.push(0);
     } else {
-      if (appliedVoltage[offset(row)] == 0) {
+      if (appliedVoltage[row] == 0) {
         attemptedTorqueAtMotor.push(
-          (-(attemptedCurrentDraw[offset(row - 1)] + freeCurrent) /
+          (-(attemptedCurrentDraw[row - 1] + freeCurrent) /
             (stallCurrent - freeCurrent)) *
             stallTorque
         );
       } else {
         attemptedTorqueAtMotor.push(
-          ((actualFreeSpeed * appliedVoltageRatios[offset(row)] -
-            motorSpeed[offset(row)]) /
-            (actualFreeSpeed * appliedVoltageRatios[offset(row)])) *
+          ((actualFreeSpeed * appliedVoltageRatios[row] - motorSpeed[row]) /
+            (actualFreeSpeed * appliedVoltageRatios[row])) *
             stallTorque *
-            appliedVoltageRatios[offset(row)]
+            appliedVoltageRatios[row]
         );
       }
     }
 
     attemptedCurrentDraw.push(
-      isFinishedDecelerating[offset(row - 1)] && isHitTarget[offset(row - 1)]
+      isFinishedDecelerating[row - 1] && isHitTarget[row - 1]
         ? 0
         : Math.abs(
-            (attemptedTorqueAtMotor[offset(row)] / stallTorque) *
+            (attemptedTorqueAtMotor[row] / stallTorque) *
               (stallCurrent - freeCurrent) +
               freeCurrent
           ) *
             args.advancedSettings.filtering +
-            attemptedCurrentDraw[offset(row - 1)] *
+            attemptedCurrentDraw[row - 1] *
               (1 - args.advancedSettings.filtering)
     );
 
-    isCurrentLimiting.push(
-      Math.abs(attemptedCurrentDraw[offset(row)]) >= currentLimit
-    );
+    isCurrentLimiting.push(Math.abs(attemptedCurrentDraw[row]) >= currentLimit);
 
     clampedPerMotorCurrentDraw.push(
       Math.min(
-        Math.abs(attemptedCurrentDraw[offset(row)]),
-        currentLimit * Math.sign(attemptedCurrentDraw[offset(row)])
+        Math.abs(attemptedCurrentDraw[row]),
+        currentLimit * Math.sign(attemptedCurrentDraw[row])
       )
     );
 
     actualAppliedTorque.push(
       Math.max(
         Math.min(
-          (((isHitTarget[offset(row - 1)] && appliedVoltage[offset(row)] < 0
-            ? -1
-            : 1) *
-            (clampedPerMotorCurrentDraw[offset(row)] - freeCurrent)) /
+          (((isHitTarget[row - 1] && appliedVoltage[row] < 0 ? -1 : 1) *
+            (clampedPerMotorCurrentDraw[row] - freeCurrent)) /
             (stallCurrent - freeCurrent)) *
             stallTorque *
             gearboxWheelEfficiency -
-            (estimatedTorqueLoss * floorSpeed[offset(row)]) /
-              maxTheoreticalSpeed -
-            ((isHitTarget[offset(row - 1)] ? 1 : 0) * estimatedTorqueLoss) /
+            (estimatedTorqueLoss * floorSpeed[row]) / maxTheoreticalSpeed -
+            ((isHitTarget[row - 1] ? 1 : 0) * estimatedTorqueLoss) /
               gearboxWheelEfficiency,
-          appliedCOF[offset(row - 1)] / args.motorsAndGearbox.motorCount
+          appliedCOF[row - 1] / args.motorsAndGearbox.motorCount
         ),
         Math.max(...actualAppliedTorque) * -1
       )
     );
 
     isWheelSlipping.push(
-      Math.abs(attemptedCurrentDraw[offset(row)]) > 0 &&
-        actualAppliedTorque[offset(row)] * args.motorsAndGearbox.motorCount >=
-          appliedCOF[offset(row - 1)] &&
-        appliedVoltage[offset(row)] != 0
+      Math.abs(attemptedCurrentDraw[row]) > 0 &&
+        actualAppliedTorque[row] * args.motorsAndGearbox.motorCount >=
+          appliedCOF[row - 1] &&
+        appliedVoltage[row] != 0
     );
 
     appliedAcceleration.push(
-      isFinishedDecelerating[offset(row - 1)] && isHitTarget[offset(row - 1)]
+      isFinishedDecelerating[row - 1] && isHitTarget[row - 1]
         ? 0
-        : ((actualAppliedTorque[offset(row)] *
-            args.motorsAndGearbox.motorCount) /
+        : ((actualAppliedTorque[row] * args.motorsAndGearbox.motorCount) /
             gearing /
             radius /
             mass) *
@@ -533,78 +524,74 @@ function ilite(args: {
             gearboxWheelEfficiency
     );
 
-    absAcceleration.push(Math.abs(appliedAcceleration[offset(row)]));
+    absAcceleration.push(Math.abs(appliedAcceleration[row]));
 
     distanceTraveled.push(
-      distanceTraveled[offset(row - 1)] +
-        0.5 * appliedAcceleration[offset(row)] * simTimeRes ** 2 +
-        floorSpeed[offset(row)] * simTimeRes
+      distanceTraveled[row - 1] +
+        0.5 * appliedAcceleration[row] * simTimeRes ** 2 +
+        floorSpeed[row] * simTimeRes
     );
 
     isHitTarget.push(
-      distanceTraveled[offset(row)] >= args.fieldAndMatchSettings.sprintDistance
+      distanceTraveled[row] >= args.fieldAndMatchSettings.sprintDistance
     );
     if (isHitTarget[isHitTarget.length - 1] && ttg == 0) {
       ttg = time;
     }
 
-    if (isHitTarget[offset(row)]) {
-      appliedCOF.push(attemptedTorqueAtMotor[offset(row)]);
+    if (isHitTarget[row]) {
+      appliedCOF.push(attemptedTorqueAtMotor[row]);
     } else {
       appliedCOF.push(
         (mass / 0.4536) *
-          (isWheelSlipping[offset(row - 1)]
+          (isWheelSlipping[row - 1]
             ? args.wheelsAndWheelBase.coefficientOfFrictionDynamic
             : args.wheelsAndWheelBase.coefficientOfFrictionStatic) *
           4.448 *
           radius *
           gearing *
-          Math.sign(attemptedTorqueAtMotor[offset(row)])
+          Math.sign(attemptedTorqueAtMotor[row])
       );
     }
 
     isFinishedDecelerating.push(
-      isFinishedDecelerating[offset(row - 1)] ||
-        (isHitTarget[offset(row)] &&
-          floorSpeed[offset(row)] <= deceleration_complete_threshold)
+      isFinishedDecelerating[row - 1] ||
+        (isHitTarget[row] && floorSpeed[row] <= deceleration_complete_threshold)
     );
 
     actualCurrentDraw.push(
-      isFinishedDecelerating[offset(row)] && isHitTarget[offset(row)]
+      isFinishedDecelerating[row] && isHitTarget[row]
         ? 0
         : Math.min(
             (Math.abs(
-              ((stallCurrent - freeCurrent) *
-                actualAppliedTorque[offset(row)]) /
+              ((stallCurrent - freeCurrent) * actualAppliedTorque[row]) /
                 stallTorque /
                 gearboxWheelEfficiency
             ) +
               freeCurrent) /
               gearboxWheelEfficiency,
-            clampedPerMotorCurrentDraw[offset(row)]
+            clampedPerMotorCurrentDraw[row]
           )
     );
 
     systemVoltage.push(
       args.electricalSystemSettings.batteryVoltageAtRest -
-        actualCurrentDraw[offset(row)] *
+        actualCurrentDraw[row] *
           dutyCycle *
           args.motorsAndGearbox.motorCount *
           args.electricalSystemSettings.batteryResistance
     );
 
     coulombs.push(
-      (Math.min(actualCurrentDraw[offset(row)], currentLimit) *
-        simTimeRes *
-        1000) /
+      (Math.min(actualCurrentDraw[row], currentLimit) * simTimeRes * 1000) /
         60 /
         60 /
         gearboxWheelEfficiency
     );
 
     isMaxSpeed.push(
-      !isFinishedDecelerating[offset(row)] &&
-        absAcceleration[offset(row)] <=
+      !isFinishedDecelerating[row] &&
+        absAcceleration[row] <=
           args.advancedSettings.maxSpeedAccelerationThreshold
     );
   }
