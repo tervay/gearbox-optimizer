@@ -440,6 +440,17 @@ def calc(
         a2 = _applied_cof[offset(row - 1)] / num_motors
         a = min(a1, a2)
         _actual_applied_torque.append(max(a, b))
+        if all(
+            [
+                row == 10,
+                num_motors == 4,
+                ratio_ == 6,
+                wheel_diameter_ == 4,
+                current_limit == 50,
+            ]
+        ):
+            print(a1, a2)
+            exit(0)
         _is_wheel_slipping.append(
             3
             if all(
@@ -548,7 +559,6 @@ def calc(
 
     return {
         "tractive force": max_tractive_force_at_wheels,
-        "time to goal": 0,
         "can turn": force_turn_cond,
         "pushing current": output_current_max_tractive_force,
         "turning current": turning_current,
@@ -607,10 +617,10 @@ def cots_gearboxes() -> List[Gearbox]:
 
 
 gearboxes = cots_gearboxes()
-wheel_sizes = [4, 6]
-current_limits = list(range(10, 80, 2))
+wheel_sizes = [4]
+current_limits = list(range(10, 80, 1))
 motor = "NEO"
-sprint_distance = 15
+sprint_distance = 40
 
 PINION_MIN = 10
 PINION_MAX = 14
