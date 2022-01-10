@@ -34,6 +34,10 @@ def calc(
     current_limit_: int,
     motor_: str,
     sprint_distance_: int,
+    rint_: float,
+    weight_: int,
+    weight_auxilliary_: int,
+    efficiency_: float = None,
 ):
     max_sim_time = _aa46 = 5
     min_gear_ratio = _aa47 = 3
@@ -73,9 +77,9 @@ def calc(
 
     # num_motors = _f5 = 6
     _f5 = num_motors_
-    efficiency1 = _f7 = 0.975 ** (num_motors_ / 2)
-    efficiency2 = _f8 = 0.95
-    efficiency3 = _f9 = 0.92
+    # efficiency1 = _f7 = 0.95
+    # efficiency2 = _f8 = 0.95
+    # efficiency3 = _f9 = 1.0
     # ratio = e45 = 7.56
     e45 = ratio_
     gearing = _f10 = e46 = 1 / ratio_
@@ -88,12 +92,12 @@ def calc(
     wheel_base_width = _f20 = 20
     weight_distribution_front = _f21 = 0.5
     weight_distribution_sides = _f22 = 0.5
-    weight = _f25 = 120
-    weight_auxilliary = _f26 = 0
+    weight = _f25 = weight_
+    weight_auxilliary = _f26 = weight_auxilliary_
     sprint_distance = _f29 = sprint_distance_
     target_time_to_goal = _f30 = 2.0
     cycles_per_match = _f31 = 24
-    deceleration_method = _f32 = "Brake"
+    deceleration_method = _f32 = "Reverse"
     deceleration_complete_threshold = c41 = motors_d30_32_from_c30_32[
         deceleration_method
     ]
@@ -101,11 +105,11 @@ def calc(
     applied_voltage_ramp = _f36 = 1200
     # motor_current_limit = _f37 = 55
     _f37 = current_limit_
-    battery_resistance = _f39 = 0.018
+    battery_resistance = _f39 = rint_
     battery_amp_hour_rating = _f40 = 18
     peak_battery_discharge = _f41 = 20
 
-    num_sim_rows = c3 = 100
+    num_sim_rows = c3 = 500
     expected_voltage_loss = c7 = 0.18
     spec_voltage = c8 = selected_motor_spec_voltage
     applied_voltage_ratio = c9 = (
@@ -132,7 +136,7 @@ def calc(
     max_delta_volts = c18 = sim_time_res * applied_voltage_ramp
     num_motors = c19 = num_motors_
     ratio_spread = c20 = 1
-    gearbox_wheel_efficiency = c21 = efficiency1 * efficiency2 * efficiency3
+    gearbox_wheel_efficiency = c21 = efficiency_
     distance_to_goal = c22 = sprint_distance * 12 * 0.0254
     mass = c23 = (weight + weight_auxilliary) * 0.4536
     radius = c24 = wheel_diameter_ / 2 * 0.0254
@@ -230,6 +234,10 @@ def calc(
     s6 = gearing
     max_theoretical_speed = ao6 = (
         actual_free_speed * gearing * wheel_diameter_ * pi / 12 / 60
+    )
+
+    can_turn = all(
+        [force_turn_cond, turning_current < 120, turning_current / num_motors < 40]
     )
 
     _times = r = list(
@@ -440,17 +448,6 @@ def calc(
         a2 = _applied_cof[offset(row - 1)] / num_motors
         a = min(a1, a2)
         _actual_applied_torque.append(max(a, b))
-        if all(
-            [
-                row == 10,
-                num_motors == 4,
-                ratio_ == 6,
-                wheel_diameter_ == 4,
-                current_limit == 50,
-            ]
-        ):
-            print(a1, a2)
-            exit(0)
         _is_wheel_slipping.append(
             3
             if all(
@@ -616,226 +613,281 @@ def cots_gearboxes() -> List[Gearbox]:
     ]
 
 
-gearboxes = cots_gearboxes()
-wheel_sizes = [4]
-current_limits = list(range(10, 80, 1))
-motor = "NEO"
-sprint_distance = 40
+if __name__ == "__main__":
+    gearboxes = cots_gearboxes()
+    wheel_sizes = [4, 5, 6]
+    current_limits = list(range(30, 82, 2))
+    motor = "NEO"
+    sprint_distance = 12
+    RInt = 0.015
+    efficiency = 0.95 * 0.95
+    include_swerve = False
+    weight = 125
+    extra_weight = 14 + 10
 
-PINION_MIN = 10
-PINION_MAX = 14
-GEAR_MIN = 20
-GEAR_MAX = 50
+    PINION_MIN = 10
+    PINION_MAX = 14
+    GEAR_MIN = 20
+    GEAR_MAX = 60
 
-enabled_custom_gearboxes = False
-if enabled_custom_gearboxes:
-    for g1 in range(PINION_MIN, PINION_MAX + 1):
-        for g2 in range(GEAR_MIN, GEAR_MAX + 2, 2):
-            for g3 in range(GEAR_MIN, GEAR_MAX + 2, 2):
-                for g4 in range(GEAR_MIN, GEAR_MAX + 2, 2):
-                    if (g1 + g2 + 4) / 20 < 2.5:
-                        continue
-                    gearboxes.append(
-                        Gearbox(
-                            name="Custom",
-                            vendors=[],
-                            motors=[2, 3],
-                            ratios=[[[g1, g2]], [[g3, g4]]],
+    enabled_custom_gearboxes = False
+    if enabled_custom_gearboxes:
+        for g1 in range(PINION_MIN, PINION_MAX + 1):
+            for g2 in range(GEAR_MIN, GEAR_MAX + 2, 2):
+                for g3 in range(GEAR_MIN, GEAR_MAX + 2, 2):
+                    for g4 in range(GEAR_MIN, GEAR_MAX + 2, 2):
+                        if (g1 + g2 + 4) / 20 < 2.5:
+                            continue
+                        gearboxes.append(
+                            Gearbox(
+                                name="Custom",
+                                vendors=[],
+                                motors=[2, 3],
+                                ratios=[[[g1, g2]], [[g3, g4]]],
+                            )
                         )
-                    )
 
+    progress = []
+    options = []
+    for gearbox in gearboxes:
+        if ("[Swerve]" in gearbox.name) and (not include_swerve):
+            continue
+        for wheel in wheel_sizes:
+            for motor_count in gearbox.motors:
+                for cl in current_limits:
+                    for ratio in gearbox.ratios:
+                        progress.append([gearbox, wheel, motor_count, cl, ratio])
 
-progress = []
-options = []
-for gearbox in gearboxes:
-    for wheel in wheel_sizes:
-        for motor_count in gearbox.motors:
-            for cl in current_limits:
-                for ratio in gearbox.ratios:
-                    progress.append([gearbox, wheel, motor_count, cl, ratio])
+    for (gearbox, wheel, motor_count, cl, ratio) in tqdm(progress):
+        stages = ratio[:-1]
+        total_reduction = ratio[-1]
+        if any(
+            [
+                len(stages) > 4 and "[Swerve]" not in gearbox.name,
+                wheel != 4 and "[Swerve]" in gearbox.name,
+                stages[0] in [8, 9],
+            ]
+        ):
+            continue
 
+        ilite_data = calc(
+            1 / overall_ratio(stages),
+            wheel_diameter_=wheel,
+            num_motors_=motor_count * 2,
+            current_limit_=cl,
+            motor_=motor,
+            sprint_distance_=sprint_distance,
+            rint_=RInt,
+            weight_=weight,
+            weight_auxilliary_=extra_weight,
+            efficiency_=efficiency,
+        )
+        if any(
+            [
+                not ilite_data["can turn"] and "Swerve" not in gearbox.name,
+                ilite_data["time to goal"] is None,
+                ilite_data["min voltage"] <= 8 or ilite_data["push voltage"] <= 8,
+            ]
+        ):
+            continue
 
-for (gearbox, wheel, motor_count, cl, ratio) in tqdm(progress):
-    stages = ratio[:-1]
-    total_reduction = ratio[-1]
-    if len(stages) > 4:
-        continue
-
-    ilite_data = calc(
-        1 / overall_ratio(stages),
-        wheel_diameter_=wheel,
-        num_motors_=motor_count * 2,
-        current_limit_=cl,
-        motor_=motor,
-        sprint_distance_=sprint_distance,
-    )
-    if not ilite_data["can turn"]:
-        continue
-    # if ilite_data["pushing current"] > 240:
-    #     continue
-    if ilite_data["time to goal"] is None:
-        continue
-    if ilite_data["min voltage"] <= 7 or ilite_data["push voltage"] <= 7:
-        continue
-
-    options.append(
-        {
-            "gearbox": gearbox.name,
-            "total reduction": round(1 / total_reduction, 2),
-            "stages": tuple(stages),
-            "current limit": cl,
-            "motors": motor_count,
-            "wheel size": wheel,
-            "tractive force": round(
-                ilite_data["tractive force"],
-            ),
-            "fps": round(
-                fps(
-                    5880,
-                    wheel_size=wheel,
-                    ratio=1 / overall_ratio(stages),
+        options.append(
+            {
+                "gearbox": gearbox.name,
+                "total reduction": round(1 / total_reduction, 2),
+                "stages": tuple(stages),
+                "current limit": cl,
+                "motors": motor_count,
+                "wheel size": wheel,
+                "tractive force": round(
+                    ilite_data["tractive force"],
                 ),
-                2,
-            ),
-            "pushing current": round(ilite_data["pushing current"]),
-            "turning current": round(ilite_data["turning current"]),
-            "time to goal": ilite_data["time to goal"],
-            "max speed": nearest_multiple(ilite_data["max speed"], 20),
-            "avg speed": ilite_data["avg speed"],
-            "min voltage": nearest_multiple(ilite_data["min voltage"], 20),
-            "test": nearest_multiple(
-                ilite_data["time to goal"] / ilite_data["tractive force"], 10000
-            ),
-            "push voltage": round(ilite_data["push voltage"]),
-        }
+                "pushing current": round(ilite_data["pushing current"]),
+                "turning current": round(ilite_data["turning current"]),
+                "time to goal": ilite_data["time to goal"],
+                "max speed": nearest_multiple(ilite_data["max speed"], 100),
+                "avg speed": ilite_data["avg speed"],
+                "min voltage": nearest_multiple(ilite_data["min voltage"], 100),
+                "test": nearest_multiple(
+                    ilite_data["time to goal"] / ilite_data["tractive force"], 10000
+                ),
+                "push voltage": round(ilite_data["push voltage"]),
+            }
+        )
+
+    options = [dict(t) for t in {tuple(d.items()) for d in options}]
+    sorted_options = sorted(
+        options,
+        key=lambda t: (
+            -t["test"],
+            -t["time to goal"],
+            t["tractive force"],
+            t["min voltage"],
+            -t["pushing current"],
+            -t["turning current"],
+            t["max speed"],
+            -len(t["stages"]),
+        ),
+        reverse=True,
     )
 
-options = [dict(t) for t in {tuple(d.items()) for d in options}]
-sorted_options = sorted(
-    options,
-    key=lambda t: (
-        -t["test"],
-        -t["time to goal"],
-        t["tractive force"],
-        t["min voltage"],
-        -t["pushing current"],
-        -t["turning current"],
-        t["max speed"],
-        -len(t["stages"]),
-    ),
-    reverse=True,
-)
-
-table = Table(show_header=True, width=200)
-for col in [
-    "Name",
-    "Motors",
-    "Whl",
-    "CurrLim",
-    "Test",
-    "TTG",
-    "TractForce",
-    "MinVolt",
-    "PushCurr",
-    "TurnCurr",
-    "MaxSpd",
-    "Stages",
-]:
-    table.add_column(col, width={"Name": 47, "Stages": 25}.get(col, None))
-
-
-cleaned_options = []
-for option in sorted(options, key=lambda o: -o["current limit"]):
-    found = False
-    for cleaned_option in cleaned_options:
-        if [
+    cleaned_options = []
+    seen = set()
+    for option in tqdm(sorted(options, key=lambda o: -o["current limit"])):
+        found = False
+        if (
             option["gearbox"],
             option["motors"],
             option["wheel size"],
             option["stages"],
-        ] == [
-            cleaned_option["gearbox"],
-            cleaned_option["motors"],
-            cleaned_option["wheel size"],
-            cleaned_option["stages"],
-        ]:
+        ) in seen:
             found = True
 
-    if not found:
-        cleaned_options.append(option)
+        if not found:
+            cleaned_options.append(option)
+            seen.add(
+                (
+                    option["gearbox"],
+                    option["motors"],
+                    option["wheel size"],
+                    option["stages"],
+                )
+            )
 
-sorted_options = sorted(
-    cleaned_options,
-    key=lambda t: (
-        -t["test"],
-        -t["time to goal"],
-        t["tractive force"],
-        t["min voltage"],
-        -t["pushing current"],
-        -t["turning current"],
-        t["max speed"],
-        -len(t["stages"]),
-    ),
-    reverse=True,
-)
-
-for opt in sorted_options:
-    table.add_row(
-        opt["gearbox"],
-        str(opt["motors"] * 2),
-        str(opt["wheel size"]),
-        str(opt["current limit"]),
-        str(opt["test"]),
-        str(opt["time to goal"]),
-        str(opt["tractive force"]),
-        str(opt["min voltage"]),
-        str(opt["pushing current"]),
-        str(opt["turning current"]),
-        str(opt["max speed"]),
-        str(opt["stages"]),
+    sorted_options = sorted(
+        cleaned_options,
+        key=lambda t: (
+            -t["test"],
+            -t["time to goal"],
+            t["tractive force"],
+            t["min voltage"],
+            -t["pushing current"],
+            -t["turning current"],
+            t["max speed"],
+            -len(t["stages"]),
+        ),
+        reverse=True,
     )
 
-with open(f"rich_{motor}.txt", "w+") as f:
-    console = Console(file=f, width=200)
-    console.print(table)
+    csv = [[]]
+    table = Table(show_header=True, width=200)
+    for col in [
+        "Name",
+        "Motors",
+        "WheelSize",
+        "CurrLim",
+        "TTG/TractForce",
+        "TTG",
+        "TractForce",
+        "MinVolt",
+        "PushCurr",
+        "TurnCurr",
+        "MaxSpd",
+        "Stages",
+        "Ratio",
+    ]:
+        table.add_column(col, width={"Name": 47, "Stages": 25}.get(col, None))
+        csv[0].append(col)
 
+    for opt in tqdm(sorted_options):
+        to_add = ()
 
-def graph(cleaned_options):
-
-    motors4 = [o for o in cleaned_options if o["motors"] == 2]
-    motors6 = [o for o in cleaned_options if o["motors"] == 3]
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=[o["time to goal"] for o in motors4],
-            y=[o["tractive force"] for o in motors4],
-            text=[pformat(o) for o in motors4],
-            name="4 Motors",
-            marker_color="blue",
-            mode="markers",
+        table.add_row(
+            opt["gearbox"],
+            str(opt["motors"] * 2),
+            str(opt["wheel size"]),
+            str(opt["current limit"]),
+            str(opt["test"]),
+            str(opt["time to goal"]),
+            str(opt["tractive force"]),
+            str(opt["min voltage"]),
+            str(opt["pushing current"]),
+            str(opt["turning current"]),
+            str(opt["max speed"]),
+            str(opt["stages"]),
+            str(opt["total reduction"]),
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=[o["time to goal"] for o in motors6],
-            y=[o["tractive force"] for o in motors6],
-            text=[pformat(o) for o in motors6],
-            name="6 Motors",
-            marker_color="red",
-            mode="markers",
+        csv.append(
+            [
+                opt["gearbox"].replace(",", " /"),
+                str(opt["motors"] * 2),
+                str(opt["wheel size"]),
+                str(opt["current limit"]),
+                str(opt["test"]),
+                str(opt["time to goal"]),
+                str(opt["tractive force"]),
+                str(opt["min voltage"]),
+                str(opt["pushing current"]),
+                str(opt["turning current"]),
+                str(opt["max speed"]),
+                str(opt["stages"]).replace(",", ":"),
+                str(opt["total reduction"]),
+            ]
         )
-    )
 
-    fig.update_yaxes(rangemode="tozero")
-    fig.update_xaxes(rangemode="tozero")
-    fig.update_layout(
-        xaxis_title="Time to Goal (s) (Rounded to nearest 0.05s)",
-        yaxis_title="Tractive Force (lbs) (Rounded to nearest 0.1lbs)",
-        title=f"Tractive Force vs Time to Goal in COTS Gearboxes ({sprint_distance} ft sprint, {motor} motor)",
-    )
+    with open(f"data_{motor}.txt", "w+") as f:
+        console = Console(file=f, width=200)
+        console.print(table)
 
-    fig.show()
+    with open(f"data_{motor}.csv", "w+") as f:
+        for l in csv:
+            print(",".join(l), file=f)
 
+    def graph(cleaned_options):
+        motors4 = [o for o in cleaned_options if o["motors"] == 2]
+        motors6 = [o for o in cleaned_options if o["motors"] == 3]
 
-graph(cleaned_options)
+        # ratios = [1 / overall_ratio(o["stages"]) for o in motors4] + [
+        #     1 / overall_ratio(o["stages"]) for o in motors6
+        # ]
+        # min_ = min(ratios)
+        # max_ = max(ratios)
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=[o["time to goal"] for o in motors4],
+                y=[o["tractive force"] for o in motors4],
+                text=[pformat(o).replace("\n", "<br>") for o in motors4],
+                name="4 Motors",
+                marker_color="blue",
+                # marker=dict(
+                #     color=[1 / overall_ratio(o["stages"]) for o in motors4],
+                #     colorbar=dict(
+                #         title="",
+                #     ),
+                #     cmin=min_,
+                #     cmax=max_,
+                #     colorscale="Viridis",
+                # ),
+                mode="markers",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[o["time to goal"] for o in motors6],
+                y=[o["tractive force"] for o in motors6],
+                text=[pformat(o).replace("\n", "<br>") for o in motors6],
+                name="6 Motors",
+                marker_color="red",
+                # marker=dict(
+                #     color=[1 / overall_ratio(o["stages"]) for o in motors6],
+                #     cmin=min_,
+                #     cmax=max_,
+                #     colorscale="Viridis",
+                # ),
+                mode="markers",
+            )
+        )
+
+        fig.update_yaxes(rangemode="tozero")
+        fig.update_xaxes(rangemode="tozero")
+        fig.update_layout(
+            xaxis_title="Time to Goal (s) (Rounded to nearest 0.05s)",
+            yaxis_title="Tractive Force (lbs) (Rounded to nearest 1lbs)",
+            title=f"Tractive Force vs Time to Goal in COTS Gearboxes ({sprint_distance} ft sprint, {motor} motor, {RInt}Ω RInt, {round(efficiency * 100, 1)}% efficiency, {weight + extra_weight}lbs robot)",
+        )
+
+        fig.show()
+
+    graph(cleaned_options)
