@@ -203,6 +203,7 @@ def calc(
         / 4.448
         * gearbox_wheel_efficiency
     )
+
     output_current_max_tractive_force = e67 = (
         (
             min(max_motor_torque_before_wheel_slip, current_limited_max_motor_torque)
@@ -615,8 +616,8 @@ def cots_gearboxes() -> List[Gearbox]:
 
 if __name__ == "__main__":
     gearboxes = cots_gearboxes()
-    wheel_sizes = [4, 5, 6]
-    current_limits = list(range(30, 82, 2))
+    wheel_sizes = [5]
+    current_limits = list(range(30, 90, 2))
     motor = "NEO"
     sprint_distance = 12
     RInt = 0.015
@@ -687,6 +688,13 @@ if __name__ == "__main__":
                 not ilite_data["can turn"] and "Swerve" not in gearbox.name,
                 ilite_data["time to goal"] is None,
                 ilite_data["min voltage"] <= 8 or ilite_data["push voltage"] <= 8,
+                round(ilite_data["tractive force"])
+                in [
+                    164
+                    # round((weight + extra_weight) * 1.1) - 1,
+                    # round((weight + extra_weight) * 1.1),
+                    # round((weight + extra_weight) * 1.1) + 1,
+                ],
             ]
         ):
             continue
