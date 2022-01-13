@@ -617,26 +617,31 @@ def cots_gearboxes() -> List[Gearbox]:
 if __name__ == "__main__":
     gearboxes = cots_gearboxes()
     wheel_sizes = [5]
-    current_limits = list(range(30, 90, 2))
+    current_limits = list(range(30, 88, 2))
     motor = "NEO"
     sprint_distance = 12
     RInt = 0.015
     efficiency = 0.95 * 0.95
     include_swerve = False
+    enabled_custom_gearboxes = False
     weight = 125
     extra_weight = 14 + 10
 
-    PINION_MIN = 10
-    PINION_MAX = 14
+    PINION_MIN = 12
+    PINION_MAX = 12
     GEAR_MIN = 20
-    GEAR_MAX = 60
+    GEAR_MAX = 84
+    GEAR3_MIN = 12
+    GEAR3_MAX = 15
+    GEAR4_MIN = 22
+    GEAR4_MAX = 22
 
-    enabled_custom_gearboxes = False
     if enabled_custom_gearboxes:
+        gearboxes = []
         for g1 in range(PINION_MIN, PINION_MAX + 1):
             for g2 in range(GEAR_MIN, GEAR_MAX + 2, 2):
-                for g3 in range(GEAR_MIN, GEAR_MAX + 2, 2):
-                    for g4 in range(GEAR_MIN, GEAR_MAX + 2, 2):
+                for g3 in range(GEAR3_MIN, GEAR3_MAX + 2, 2):
+                    for g4 in range(GEAR4_MIN, GEAR4_MAX + 2, 2):
                         if (g1 + g2 + 4) / 20 < 2.5:
                             continue
                         gearboxes.append(
@@ -690,10 +695,10 @@ if __name__ == "__main__":
                 ilite_data["min voltage"] <= 8 or ilite_data["push voltage"] <= 8,
                 round(ilite_data["tractive force"])
                 in [
-                    164
-                    # round((weight + extra_weight) * 1.1) - 1,
-                    # round((weight + extra_weight) * 1.1),
-                    # round((weight + extra_weight) * 1.1) + 1,
+                    # 164
+                    round((weight + extra_weight) * 1.1) - 1,
+                    round((weight + extra_weight) * 1.1),
+                    round((weight + extra_weight) * 1.1) + 1,
                 ],
             ]
         ):
