@@ -101,7 +101,7 @@ def calc(
     deceleration_complete_threshold = c41 = motors_d30_32_from_c30_32[
         deceleration_method
     ]
-    battery_voltage_rest = _f35 = 12.6
+    battery_voltage_rest = _f35 = 12.4
     applied_voltage_ramp = _f36 = 1200
     # motor_current_limit = _f37 = 55
     _f37 = current_limit_
@@ -164,7 +164,7 @@ def calc(
     dimension_turn_cond = (
         coeff_friction_static * wheel_base_width
         > coeff_friction_lateral
-        * (wheel_base_length - 4 * dist_coa_com ** 2 / wheel_base_length)
+        * (wheel_base_length - 4 * dist_coa_com**2 / wheel_base_length)
     )
 
     geared_stall_torque = e62 = (
@@ -477,7 +477,7 @@ def calc(
         )
         _distance.append(
             _distance[offset(row - 1)]
-            + 0.5 * _applied_acceleration[offset(row)] * sim_time_res ** 2
+            + 0.5 * _applied_acceleration[offset(row)] * sim_time_res**2
             + _floor_speed[offset(row)] * sim_time_res
         )
 
@@ -590,6 +590,7 @@ class Gearbox:
         self.vendors = vendors
         self.motors = motors
         self.ratios = []
+        print(ratios)
         for stage in ratios:
             if len(self.ratios) == 0:
                 for reduction in stage:
@@ -601,8 +602,10 @@ class Gearbox:
                     for prev_reduction in prev_ratios:
                         self.ratios.append(prev_reduction + reduction)
 
+        print(self.ratios)
         for ratio in self.ratios:
             ratio.append(overall_ratio(ratio))
+        print(self.ratios)
 
 
 def cots_gearboxes() -> List[Gearbox]:
@@ -610,34 +613,44 @@ def cots_gearboxes() -> List[Gearbox]:
         content = json.load(f)
 
     return [
-        Gearbox(gb["name"], gb["vendors"], gb["motors"], gb["ratios"]) for gb in content
+        Gearbox(gb["name"], gb["vendors"], gb["motors"], gb["ratios"])
+        for gb in content
+        if "MK4i" in gb["name"]
     ]
+
+
+def efficiency_calc(ratio):
+    # ratio = 1 / ratio
+    # return (0.5143 * ratio + 93.36) / 100
+    return 1
 
 
 if __name__ == "__main__":
     gearboxes = cots_gearboxes()
-    wheel_sizes = [5]
-    current_limits = list(range(30, 88, 2))
-    motor = "NEO"
-    sprint_distance = 12
-    RInt = 0.015
-    efficiency = 0.95 * 0.95
-    include_swerve = False
+    wheel_sizes = [4]
+    current_limits = list(range(30, 90, 2))
+    motor = "Falcon 500"
+    sprint_distance = 40
+    RInt = 0.02
+    efficiency = 0.95
+    include_swerve = True
     enabled_custom_gearboxes = False
     weight = 125
     extra_weight = 14 + 10
 
+    brownout_voltage = 6.75
+
     PINION_MIN = 12
-    PINION_MAX = 12
-    GEAR_MIN = 20
-    GEAR_MAX = 84
-    GEAR3_MIN = 12
-    GEAR3_MAX = 15
-    GEAR4_MIN = 22
-    GEAR4_MAX = 22
+    PINION_MAX = 14
+    GEAR_MIN = 48
+    GEAR_MAX = 52
+    GEAR3_MIN = 24
+    GEAR3_MAX = 30
+    GEAR4_MIN = 14
+    GEAR4_MAX = 50
 
     if enabled_custom_gearboxes:
-        gearboxes = []
+        # gearboxes = []
         for g1 in range(PINION_MIN, PINION_MAX + 1):
             for g2 in range(GEAR_MIN, GEAR_MAX + 2, 2):
                 for g3 in range(GEAR3_MIN, GEAR3_MAX + 2, 2):
@@ -646,25 +659,52 @@ if __name__ == "__main__":
                             continue
                         gearboxes.append(
                             Gearbox(
-                                name="Custom",
+                                name="[Swerve] Custom",
                                 vendors=[],
-                                motors=[2, 3],
+                                motors=[2, 4],
                                 ratios=[[[g1, g2]], [[g3, g4]]],
                             )
                         )
 
+    simple_min_ratio = 3
+    simple_max_ratio = 6.12
+    simple_ratio_step = 0.01
+    enabled_simple_gearboxes = False
+    if enabled_simple_gearboxes:
+        r = simple_min_ratio
+        while r <= simple_max_ratio:
+            gearboxes.append(
+                Gearbox(
+                    name="[Swerve] Custom", vendors=[], motors=[2, 4], ratios=[[[1, r]]]
+                )
+            )
+            r += simple_ratio_step
+
+    swerve_gearbox = [50, [[28, 16]], [[15, 45]]]
+    swerve_pinions = [12, 13, 14]
+
+    for pinion in swerve_pinions:
+        gearboxes.append(
+            Gearbox(
+                name="[Swerve] Custom",
+                vendors=[],
+                motors=[2],
+                ratios=[[[pinion, swerve_gearbox[0]]]] + swerve_gearbox[1:],
+            )
+        )
+
     progress = []
     options = []
     for gearbox in gearboxes:
-        if ("[Swerve]" in gearbox.name) and (not include_swerve):
-            continue
+        # if ("[Swerve]" in gearbox.name) and (not include_swerve):
+        #     continue
         for wheel in wheel_sizes:
             for motor_count in gearbox.motors:
                 for cl in current_limits:
                     for ratio in gearbox.ratios:
                         progress.append([gearbox, wheel, motor_count, cl, ratio])
 
-    for (gearbox, wheel, motor_count, cl, ratio) in tqdm(progress):
+    for gearbox, wheel, motor_count, cl, ratio in tqdm(progress):
         stages = ratio[:-1]
         total_reduction = ratio[-1]
         if any(
@@ -686,13 +726,14 @@ if __name__ == "__main__":
             rint_=RInt,
             weight_=weight,
             weight_auxilliary_=extra_weight,
-            efficiency_=efficiency,
+            efficiency_=efficiency_calc(ratio[0]),
         )
         if any(
             [
                 not ilite_data["can turn"] and "Swerve" not in gearbox.name,
                 ilite_data["time to goal"] is None,
-                ilite_data["min voltage"] <= 8 or ilite_data["push voltage"] <= 8,
+                ilite_data["min voltage"] <= brownout_voltage
+                or ilite_data["push voltage"] <= brownout_voltage,
                 round(ilite_data["tractive force"])
                 in [
                     # 164
@@ -712,9 +753,7 @@ if __name__ == "__main__":
                 "current limit": cl,
                 "motors": motor_count,
                 "wheel size": wheel,
-                "tractive force": round(
-                    ilite_data["tractive force"],
-                ),
+                "tractive force": round(ilite_data["tractive force"]),
                 "pushing current": round(ilite_data["pushing current"]),
                 "turning current": round(ilite_data["turning current"]),
                 "time to goal": ilite_data["time to goal"],
@@ -725,6 +764,7 @@ if __name__ == "__main__":
                     ilite_data["time to goal"] / ilite_data["tractive force"], 10000
                 ),
                 "push voltage": round(ilite_data["push voltage"]),
+                "efficiency": round(efficiency_calc(ratio[0]), 3),
             }
         )
 
@@ -756,16 +796,16 @@ if __name__ == "__main__":
         ) in seen:
             found = True
 
-        if not found:
-            cleaned_options.append(option)
-            seen.add(
-                (
-                    option["gearbox"],
-                    option["motors"],
-                    option["wheel size"],
-                    option["stages"],
-                )
+            # if not found:
+        cleaned_options.append(option)
+        seen.add(
+            (
+                option["gearbox"],
+                option["motors"],
+                option["wheel size"],
+                option["stages"],
             )
+        )
 
     sorted_options = sorted(
         cleaned_options,
@@ -848,7 +888,7 @@ if __name__ == "__main__":
 
     def graph(cleaned_options):
         motors4 = [o for o in cleaned_options if o["motors"] == 2]
-        motors6 = [o for o in cleaned_options if o["motors"] == 3]
+        motors6 = [o for o in cleaned_options if o["motors"] == 4]
 
         # ratios = [1 / overall_ratio(o["stages"]) for o in motors4] + [
         #     1 / overall_ratio(o["stages"]) for o in motors6

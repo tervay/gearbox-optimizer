@@ -98,6 +98,36 @@ _motors = [
         "weight": {"magnitude": 1.1, "unit": "lbs"},
         "url": "https://www.andymark.com/products/snow-blower-motor-with-hex-shaft",
     },
+    {
+        "name": "Kraken X60",
+        "freeSpeed": {"magnitude": 6000, "unit": "rpm"},
+        "stallTorque": {"magnitude": 7.09, "unit": "N*m"},
+        "stallCurrent": {"magnitude": 366, "unit": "A"},
+        "freeCurrent": {"magnitude": 1.5, "unit": "A"},
+        "weight": {"magnitude": 1.2, "unit": "lbs"},
+        "diameter": {"magnitude": 2.37, "unit": "in"},
+        "url": "https://wcproducts.com/products/kraken",
+    },
+    {
+        "name": "Kraken X60 (FOC)",
+        "freeSpeed": {"magnitude": 5800, "unit": "rpm"},
+        "stallTorque": {"magnitude": 9.37, "unit": "N*m"},
+        "stallCurrent": {"magnitude": 483, "unit": "A"},
+        "freeCurrent": {"magnitude": 1.5, "unit": "A"},
+        "weight": {"magnitude": 1.2, "unit": "lbs"},
+        "diameter": {"magnitude": 2.37, "unit": "in"},
+        "url": "https://wcproducts.com/products/kraken",
+    },
+    {
+        "name": "NEO Vortex",
+        "freeSpeed": {"magnitude": 6784, "unit": "rpm"},
+        "stallTorque": {"magnitude": 3.6, "unit": "N*m"},
+        "stallCurrent": {"magnitude": 211, "unit": "A"},
+        "freeCurrent": {"magnitude": 3.6, "unit": "A"},
+        "weight": {"magnitude": 1.2, "unit": "lbs"},
+        "diameter": {"magnitude": 0, "unit": "in"},
+        "url": "https://www.revrobotics.com/next-generation-spark-neo/",
+    },
 ]
 
 motors = {m["name"]: m for m in _motors}

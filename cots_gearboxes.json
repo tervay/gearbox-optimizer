@@ -232,6 +232,12 @@
     "ratios": [[[16, 48]], [[28, 16]], [[15, 45]]]
   },
   {
+    "name": "[Swerve] SDS MK4i Very Fast Gearing",
+    "motors": [2],
+    "vendors": ["SDS"],
+    "ratios": [[[14, 50]], [[28, 16]], [[15, 45]]]
+  },
+  {
     "name": "[Swerve] WCP SS Swerve (Falcon)",
     "motors": [2],
     "vendors": ["WCP"],
