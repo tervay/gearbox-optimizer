@@ -43,14 +43,6 @@ pinions = {
     "NEO": [14],
 }
 
-modules = {
-    "MK4i_L3": [
-        [None, 50],
-        [28, 16],
-        [15, 45],
-    ],
-}
-
 gearboxes = []
 for motor_name, motor_pinions in pinions.items():
     for pinion in motor_pinions:
@@ -92,7 +84,6 @@ for gb in gearboxes:
                 "wheel size": 4,
                 "tractive force": round(ilite_data["tractive force"]),
                 "pushing current": round(ilite_data["pushing current"]),
-                "turning current": round(ilite_data["turning current"]),
                 "time to goal": ilite_data["time to goal"],
                 "max speed": nearest_multiple(ilite_data["max speed"], 100),
                 "avg speed": ilite_data["avg speed"],
@@ -100,7 +91,7 @@ for gb in gearboxes:
                 "ttgPerForce": nearest_multiple(
                     ilite_data["time to goal"] / ilite_data["tractive force"], 10000
                 ),
-                "push voltage": round(ilite_data["push voltage"]),
+                "push voltage": nearest_multiple(ilite_data["push voltage"], 100),
                 "efficiency": round(
                     efficiency_calc(calculate_gear_ratio([gb.ratios[0]])), 3
                 ),
@@ -116,7 +107,6 @@ sorted_options = sorted(
         t["tractive force"],
         t["min voltage"],
         -t["pushing current"],
-        -t["turning current"],
         t["max speed"],
     ),
     reverse=True,
@@ -126,14 +116,6 @@ sorted_options = sorted(
 cleaned_options = []
 seen = set()
 for option in tqdm(sorted(options, key=lambda o: -o["current limit"])):
-    found = False
-    if (
-        option["gearbox"],
-        option["motors"],
-        option["wheel size"],
-    ) in seen:
-        found = True
-
     cleaned_options.append(option)
     seen.add(
         (
@@ -151,7 +133,6 @@ sorted_options = sorted(
         t["tractive force"],
         t["min voltage"],
         -t["pushing current"],
-        -t["turning current"],
         t["max speed"],
     ),
     reverse=True,
@@ -171,7 +152,6 @@ for col in [
     "PushCurr",
     "TurnCurr",
     "MaxSpd",
-    # "Stages",
     "Ratio",
 ]:
     table.add_column(col, width={"Name": 47, "Stages": 25}.get(col, None))
@@ -190,7 +170,6 @@ for opt in tqdm(sorted_options):
         str(opt["tractive force"]),
         str(opt["min voltage"]),
         str(opt["pushing current"]),
-        str(opt["turning current"]),
         str(opt["max speed"]),
         str(opt["total reduction"]),
     )
@@ -205,7 +184,6 @@ for opt in tqdm(sorted_options):
             str(opt["tractive force"]),
             str(opt["min voltage"]),
             str(opt["pushing current"]),
-            str(opt["turning current"]),
             str(opt["max speed"]),
             str(opt["total reduction"]),
         ]
@@ -223,7 +201,7 @@ def graph(cleaned_options):
             x=[o["time to goal"] for o in cleaned_options],
             y=[o["tractive force"] for o in cleaned_options],
             text=[pformat(o).replace("\n", "<br>") for o in cleaned_options],
-            name="6 Motors",
+            name="Modules",
             marker_color=[
                 {
                     "NEO Vortex": "orange",
@@ -239,7 +217,7 @@ def graph(cleaned_options):
     fig.update_yaxes(rangemode="tozero")
     fig.update_xaxes(rangemode="tozero")
     fig.update_layout(
-        xaxis_title="Time to Goal (s) (Rounded to nearest 0.05s)",
+        xaxis_title="Time to Goal (s)",
         yaxis_title="Tractive Force (lbs) (Rounded to nearest 1lbs)",
         title=f"Tractive Force vs Time to Goal in MK4i L3s with varying pinion sizes",
     )
